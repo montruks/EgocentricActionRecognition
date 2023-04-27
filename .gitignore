@@ -5,6 +5,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# input files
+data
+checkpoints
+
 # C extensions
 *.so
 

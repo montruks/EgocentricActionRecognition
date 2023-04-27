@@ -1,5 +1,7 @@
 import glob
 from abc import ABC
+
+import numpy as np
 import pandas as pd
 from .epic_record import EpicVideoRecord
 import torch.utils.data as data
@@ -74,7 +76,20 @@ class EpicKitchensDataset(data.Dataset, ABC):
         # Remember that the returned array should have size              #
         #           num_clip x num_frames_per_clip                       #
         ##################################################################
-        raise NotImplementedError("You should implement _get_train_indices")
+        num_clip = 5
+        num_frames_per_clip = 16
+
+        num_frames_tot = record.num_frames()[modality]
+        num_frames_tot_per_clip = num_frames_tot // num_clip
+
+        frames = []
+        for i in range(num_clip):
+            frame_centrale = record.start_frame() + num_frames_tot_per_clip * (2*i+1) // 2
+            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip//2, num_frames_per_clip//2)]
+            frames.append(frames_tmp)
+
+        return np.array(frames)
+
 
     def _get_val_indices(self, record, modality):
         ##################################################################
@@ -85,7 +100,20 @@ class EpicKitchensDataset(data.Dataset, ABC):
         # Remember that the returned array should have size              #
         #           num_clip x num_frames_per_clip                       #
         ##################################################################
-        raise NotImplementedError("You should implement _get_val_indices")
+        num_clip = 5
+        num_frames_per_clip = 16
+
+        num_frames_tot = record.num_frames()[modality]
+        num_frames_tot_per_clip = num_frames_tot // num_clip
+
+        frames = []
+        for i in range(num_clip):
+            frame_centrale = record.start_frame() + num_frames_tot_per_clip * (2 * i + 1) // 2
+            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+            frames.append(frames_tmp)
+
+        return np.array(frames)
+
 
     def __getitem__(self, index):
 
