@@ -5,9 +5,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# input files
+# Matteo
 data
-checkpoints
+saved_models
+Experiment_logs
+TEST_RESULTS
 
 # C extensions
 *.so

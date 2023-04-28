@@ -167,6 +167,8 @@ class Task(torch.nn.Module, metaclass=ABCMeta):
             directory to load models from
         """
         # List all the files in the path in chronological order (1st is most recent, last is less recent)
+        print(path)
+
         last_models_dir = list(
             sorted(
                 Path(path).iterdir(),
@@ -186,7 +188,7 @@ class Task(torch.nn.Module, metaclass=ABCMeta):
             )[0].name
 
             model_path = os.path.join(last_models_dir, model)
-            self.__restore_checkpoint(model_path)
+            self.__restore_checkpoint(self, path=model_path)
 
     def save_model(self, current_iter: int, last_iter_acc: float, prefix: Optional[str] = None):
         """Save the model.
