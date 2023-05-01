@@ -93,7 +93,7 @@ class Task(torch.nn.Module, metaclass=ABCMeta):
         """
         logger.info("Restoring {} for modality {} from {}".format(self.name, m, path))
 
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=torch.device('cpu'))  # change
 
         # Restore the state of the task
         self.current_iter = checkpoint["iteration"]
@@ -167,8 +167,6 @@ class Task(torch.nn.Module, metaclass=ABCMeta):
             directory to load models from
         """
         # List all the files in the path in chronological order (1st is most recent, last is less recent)
-        print(path)
-
         last_models_dir = list(
             sorted(
                 Path(path).iterdir(),

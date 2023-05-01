@@ -64,7 +64,7 @@ class ActionRecognition(tasks.Task, ABC):
         Parameters
         ----------
         data : Dict[str, torch.Tensor]
-            a dictionary that stores the input data forh modality
+            a dictionary that stores the input data for each modality
 
         Returns
         -------

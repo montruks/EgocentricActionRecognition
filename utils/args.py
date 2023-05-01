@@ -9,9 +9,9 @@ def add_paths():
     path_conf = OmegaConf.create()
     path_conf.dataset = {}
     path_conf.dataset.RGB = {}
-    if platform.node() == 'tiche':
-        path_conf.wandb_dir = "/data2/ggoletto/"
-        path_conf.dataset.RGB.data_path = "/data/chiara/EK_data/rgb_flow/"
+    if platform.node() == 'PC_Montrucchio':
+        path_conf.wandb_dir = None
+        path_conf.dataset.RGB.data_path = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/ek_data/frames/'
     if platform.node() == "GABRDESK":
         path_conf.wandb_dir = None
         path_conf.dataset.RGB.data_path = "/home/ezius/HDD/EK_data/rgb_flow/"

@@ -54,7 +54,6 @@ def main():
                                                 args.test.num_clips, args.models, args=args)
     action_classifier.load_on_gpu(device)
     if args.resume_from is not None:
-        print(args.resume_from)
         action_classifier.load_last_model(args.resume_from)
 
     if args.action == "save":
