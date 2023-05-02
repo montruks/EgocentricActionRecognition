@@ -1,5 +1,6 @@
 import glob
 from abc import ABC
+import numpy as np
 import pandas as pd
 from .epic_record import EpicVideoRecord
 import torch.utils.data as data
@@ -78,12 +79,14 @@ class EpicKitchensDataset(data.Dataset, ABC):
         num_frames_per_clip = 16
 
         num_frames_tot = record.num_frames[modality]
-        num_frames_tot_per_clip = num_frames_tot // num_clip
+        centroids = np.linspace(0, num_frames_tot, num_clip + 2)[1:-1].astype(int)
 
         frames = []
-        for i in range(num_clip):
-            frame_centrale = num_frames_tot_per_clip * (2 * i + 1) // 2
-            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+        for c in centroids:
+            # frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+            # frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
+            frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
+            frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
             frames = frames + frames_tmp
 
         return frames
@@ -102,14 +105,16 @@ class EpicKitchensDataset(data.Dataset, ABC):
         num_frames_per_clip = 16
 
         num_frames_tot = record.num_frames[modality]
-        num_frames_tot_per_clip = num_frames_tot // num_clip
+        centroids = np.linspace(0, num_frames_tot, num_clip + 2)[1:-1].astype(int)
 
         frames = []
-        for i in range(num_clip):
-            frame_centrale = num_frames_tot_per_clip * (2 * i + 1) // 2
-            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+        for c in centroids:
+            # frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+            # frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
+            frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
+            frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
             frames = frames + frames_tmp
-        # frames = [2 if f < 2 else num_frames_tot if f > num_frames_tot else f for f in frames]
+
         return frames
 
 
