@@ -17,7 +17,7 @@ dataset:
   stride: 2
   resolution: 224
   RGB:
-    data_path: null
+    data_path: '/ek_data/frames'
     tmpl: "img_{:010d}.jpg"
   Event:
     rgb4e: 6

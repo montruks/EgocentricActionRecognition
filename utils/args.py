@@ -15,14 +15,6 @@ def add_paths():
     if platform.node() == 'PC_Montrucchio':
         path_conf.wandb_dir = None
         path_conf.dataset.RGB.data_path = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/ek_data/frames/'
-    if platform.node() == "GABRDESK":
-        path_conf.wandb_dir = None
-        path_conf.dataset.RGB.data_path = "/home/ezius/HDD/EK_data/rgb_flow/"
-    if platform.node() == "hyperion":
-        path_conf.wandb_dir = "/data/mirco/wandb_gole"
-        path_conf.dataset.RGB.data_path = "/data/EpicKitchen/EpicKitchenDA/rgb_flow"
-        # path_conf.models_dir = "/data/mirco/RAL_EdgeEgoModels/"
-        path_conf.models_dir = "/data/mirco/CVPR_AffordanceDA/"
     return path_conf
 
 

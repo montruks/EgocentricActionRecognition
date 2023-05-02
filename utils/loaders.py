@@ -82,8 +82,8 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         frames = []
         for i in range(num_clip):
-            frame_centrale = num_frames_tot_per_clip * (2*i+1) // 2
-            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip//2, num_frames_per_clip//2)]
+            frame_centrale = num_frames_tot_per_clip * (2 * i + 1) // 2
+            frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
             frames = frames + frames_tmp
 
         return frames
@@ -109,7 +109,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
             frame_centrale = num_frames_tot_per_clip * (2 * i + 1) // 2
             frames_tmp = [frame_centrale + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
             frames = frames + frames_tmp
-        frames = [2 if f < 2 else num_frames_tot if f > num_frames_tot else f for f in frames]
+        # frames = [2 if f < 2 else num_frames_tot if f > num_frames_tot else f for f in frames]
         return frames
 
 
