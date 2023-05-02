@@ -9,6 +9,7 @@ __pycache__/
 data
 ek_data
 saved_models
+saved_features
 Experiment_logs
 TEST_RESULTS
 
