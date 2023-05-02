@@ -9,6 +9,9 @@ def add_paths():
     path_conf = OmegaConf.create()
     path_conf.dataset = {}
     path_conf.dataset.RGB = {}
+    if platform.node() == 'LAPTOP-DANIELE':
+        path_conf.wandb_dir = None
+        path_conf.dataset.RGB.data_path = 'C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/train_val'
     if platform.node() == 'PC_Montrucchio':
         path_conf.wandb_dir = None
         path_conf.dataset.RGB.data_path = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/ek_data/frames/'
