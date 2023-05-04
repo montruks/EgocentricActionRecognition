@@ -8,11 +8,12 @@ import copy
 # temp_feature_pkl = copy.deepcopy(feature_pkl)  # empty dictionary
 #
 
+
 def temporalAveragePooling(path):
     f = open(path, 'rb')
     feature_pkl = pickle.load(f)
     temp_feature_pkl = copy.deepcopy(feature_pkl)
-    for k in len(feature_pkl['features']):
+    for k in range(0, len(feature_pkl['features'])):
         feature = feature_pkl['features'][k]['features_RGB']
         # Temporal Pooling Average
         temp_feature_pkl['features'][k]['features_RGB'] = np.sum(feature, axis=0)
