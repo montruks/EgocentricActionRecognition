@@ -27,7 +27,6 @@ class TempAvgPool(nn.Module):
 
     def forward(self, x):
         # calcola la media sui canali (dim=0)
-        avg = x.mean(dim=0)
+        avg = np.sum(x, 0)/x.shape[0]
         # replica la media per ogni canale
-        avg = avg.expand_as(x)
         return avg
