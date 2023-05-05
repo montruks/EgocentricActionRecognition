@@ -1,6 +1,7 @@
 import pickle
 import numpy as np
 import copy
+import torch.nn as nn
 
 
 # f = open('C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/saved_features/saved_feat_I3D_D1_test.pkl', 'rb')
@@ -18,3 +19,15 @@ def temporalAveragePooling(path):
         # Temporal Pooling Average
         temp_feature_pkl['features'][k]['features_RGB'] = np.sum(feature, axis=0)
     return temp_feature_pkl
+
+
+class TempAvgPool(nn.Module):
+    def __init__(self):
+        super(TempAvgPool, self).__init__()
+
+    def forward(self, x):
+        # calcola la media sui canali (dim=0)
+        avg = x.mean(dim=0)
+        # replica la media per ogni canale
+        avg = avg.expand_as(x)
+        return avg
