@@ -83,10 +83,12 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         frames = []
         for c in centroids:
-            # frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
-            # frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
-            frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
-            frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
+            if num_frames_tot > 2 * num_clip * num_frames_per_clip:
+                frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
+            else:
+                frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+            # frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
+            # frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
             frames = frames + frames_tmp
 
         return frames
@@ -109,10 +111,12 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         frames = []
         for c in centroids:
-            # frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
-            # frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
-            frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
-            frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
+            if num_frames_tot > 2 * num_clip * num_frames_per_clip:
+                frames_tmp = [c + j for j in range(-num_frames_per_clip, num_frames_per_clip, 2)]
+            else:
+                frames_tmp = [c + j for j in range(-num_frames_per_clip // 2, num_frames_per_clip // 2)]
+            # frames_tmp = [c + j for j in range(0, 2 * num_frames_per_clip, 2)]
+            # frames_tmp = [0 if f < 0 else num_frames_tot if f > num_frames_tot else f for f in frames_tmp]
             frames = frames + frames_tmp
 
         return frames
