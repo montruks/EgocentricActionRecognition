@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import copy
 import torch.nn as nn
+import torch.utils.data as data
 
 
 # f = open('C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/saved_features/saved_feat_I3D_D1_test.pkl', 'rb')
@@ -27,6 +28,13 @@ class TempAvgPool(nn.Module):
 
     def forward(self, x):
         # calcola la media sui canali (dim=0)
-        avg = np.sum(x, 0)/x.shape[0]
+        avg = np.sum(x, 0) / x.shape[0]
         # replica la media per ogni canale
         return avg
+
+
+class SavedFeatureDataset(data.Dataset):
+    def __init__(self, pathFeature):
+        f = open(pathFeature, 'rb')
+        feature_pkl = pickle.load(f)
+        temp_feature_pkl = copy.deepcopy(feature_pkl)
