@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 import torch
+import pickle
 
 
 def get_domains_and_labels(args):
@@ -120,3 +121,14 @@ def pformat_dict(d, indent=0):
         else:
             fstr += ' ' + str(value)
     return fstr
+
+
+def temporalAveragePooling(path):
+    f = open(path, 'rb')
+    feature_pkl = pickle.load(f)
+    temp_feature_pkl = copy.deepcopy(feature_pkl)
+    for k in range(0, len(feature_pkl['features'])):
+        feature = feature_pkl['features'][k]['features_RGB']
+        # Temporal Pooling Average
+        temp_feature_pkl['features'][k]['features_RGB'] = np.sum(feature, axis=0)
+    return temp_feature_pkl
