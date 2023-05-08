@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 import torch
 import pickle
+import copy
 
 
 def get_domains_and_labels(args):
