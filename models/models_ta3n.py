@@ -17,6 +17,7 @@ torch.cuda.manual_seed_all(1)
 init(autoreset=True)
 
 # definition of Gradient Reversal Layer
+## SI
 class GradReverse(Function):
 	@staticmethod
 	def forward(ctx, x, beta):
@@ -29,6 +30,7 @@ class GradReverse(Function):
 		return grad_input, None
 
 # definition of Gradient Scaling Layer
+## ?
 class GradScale(Function):
 	@staticmethod
 	def forward(ctx, x, beta):
@@ -41,6 +43,7 @@ class GradScale(Function):
 		return grad_input, None
 
 # definition of Temporal-ConvNet Layer
+## ?
 class TCL(nn.Module):
 	def __init__(self, conv_size, dim):
 		super(TCL, self).__init__()
@@ -142,11 +145,13 @@ class VideoModel(nn.Module):
 		normal_(self.fc_feature_shared_source.weight, 0, std)
 		constant_(self.fc_feature_shared_source.bias, 0)
 
+		#no
 		if self.add_fc > 1:
 			self.fc_feature_shared_2_source = nn.Linear(feat_shared_dim, feat_shared_dim)
 			normal_(self.fc_feature_shared_2_source.weight, 0, std)
 			constant_(self.fc_feature_shared_2_source.bias, 0)
 
+		#no
 		if self.add_fc > 2:
 			self.fc_feature_shared_3_source = nn.Linear(feat_shared_dim, feat_shared_dim)
 			normal_(self.fc_feature_shared_3_source.weight, 0, std)

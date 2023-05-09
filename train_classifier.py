@@ -110,6 +110,8 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
     global training_iterations, modalities
 
     data_loader_source = iter(train_loader)
+    data_loader_target = iter(val_loader) # aggiunta nostra per iterare dopo
+
     action_classifier.train(True)
     action_classifier.zero_grad()
     iteration = action_classifier.current_iter * (args.total_batch // args.batch_size)
@@ -137,6 +139,15 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
         except StopIteration:
             data_loader_source = iter(train_loader)
             source_data, source_label = next(data_loader_source)
+        end_t = datetime.now()
+
+        # aggiunta nostra: iteratore aggiuntivo sui target
+
+        try:
+            target_data, target_label = next(data_loader_target)
+        except StopIteration:
+            data_loader_target = iter(val_loader)
+            target_data, target_label = next(data_loader_target)
         end_t = datetime.now()
 
         logger.info(f"Iteration {i}/{training_iterations} batch retrieved! Elapsed time = "
