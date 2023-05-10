@@ -5,7 +5,7 @@ import platform
 
 
 class SavedFeatureDataset(data.Dataset):
-    def __init__(self, data, train=False):
+    def __init__(self, dataType, train=False):
         if platform.node() == 'LAPTOP-DANIELE':
             path_label = 'C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/train_val'
             path_feature = 'C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/saved_features'
@@ -13,11 +13,11 @@ class SavedFeatureDataset(data.Dataset):
             path_label = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/train_val'
             path_feature = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/saved_features'
         if train:
-            path_label = path_label + '/' + data + '_' + 'train.pkl'
+            path_label = path_label + '/' + dataType + '_' + 'train.pkl'
             path_feature = path_feature + '/' + 'saved_feat_I3D_' + 'data' + '_train.pkl'
         else:
-            path_feature = path_feature + '/' + 'saved_feat_I3D_' + data + '_test.pkl'
-            path_label = path_label + '/' + data + '_' + 'test.pkl'
+            path_feature = path_feature + '/' + 'saved_feat_I3D_' + dataType + '_test.pkl'
+            path_label = path_label + '/' + dataType + '_' + 'test.pkl'
         f_label = open(path_label, 'rb')
         f_feature = open(path_feature, 'rb')
         df1 = pickle.load(f_label)
@@ -25,7 +25,7 @@ class SavedFeatureDataset(data.Dataset):
         label = df1['verb_class']
         self.complete_dataframe = pd.DataFrame(df2['features'])
         self.complete_dataframe['label'] = label
-        self.data = self.complete_dataframe.drop(['label'], axis=1)
+        self.data = self.complete_dataframe['features_RGB']
         self.target = self.complete_dataframe['label']
 
     def __len__(self):

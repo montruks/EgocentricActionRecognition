@@ -1,7 +1,7 @@
 action: save # train or test
 name: saved_feat_I3D
 split: test
-resume_from: './saved_models/I3D_SourceOnlyD1'
+resume_from: './saved_features'
 
 save:
   num_clips: 5
@@ -12,7 +12,7 @@ save:
 
 dataset:
   annotations_path: train_val
-  shift: D1-D1
+  shift: D2-D1
   workers: 4
   stride: 2
   resolution: 224

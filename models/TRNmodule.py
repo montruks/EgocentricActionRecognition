@@ -28,8 +28,7 @@ class RelationModule(torch.nn.Module):
 
 
 class RelationModuleMultiScale(torch.nn.Module):
-    # Temporal Relation module in multiply scale, suming over [2-frame relation, 3-frame relation, ...,
-    # n-frame relation]
+    # Temporal Relation module in multiply scale, suming over [2-frame relation, 3-frame relation, ..., n-frame relation]
 
     def __init__(self, img_feature_dim, num_bottleneck, num_frames):
         super(RelationModuleMultiScale, self).__init__()
@@ -43,8 +42,7 @@ class RelationModuleMultiScale(torch.nn.Module):
             relations_scale = self.return_relationset(num_frames, scale)
             self.relations_scales.append(relations_scale)
             self.subsample_scales.append(min(self.subsample_num,
-                                             len(relations_scale)))  # how many samples of relation to select in each
-            # forward pass
+                                             len(relations_scale)))  # how many samples of relation to select in each forward pass
 
         # self.num_class = num_class
         self.num_frames = num_frames

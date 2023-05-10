@@ -56,7 +56,7 @@ def main():
         logger.info('{} Net\tModality: {}'.format(args.models[m].model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
-        models[m] = getattr(model_list, args.models[m].model)(1024)
+        models[m] = getattr(model_list, args.models[m].model)(num_classes)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
@@ -110,6 +110,8 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
     global training_iterations, modalities
 
     data_loader_source = iter(train_loader)
+    data_loader_target = iter(val_loader)  # aggiunta nostra per iterare dopo
+
     action_classifier.train(True)
     action_classifier.zero_grad()
     iteration = action_classifier.current_iter * (args.total_batch // args.batch_size)
@@ -139,6 +141,15 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             source_data, source_label = next(data_loader_source)
         end_t = datetime.now()
 
+        # aggiunta nostra: iteratore aggiuntivo sui target
+
+        try:
+            target_data, target_label = next(data_loader_target)
+        except StopIteration:
+            data_loader_target = iter(val_loader)
+            target_data, target_label = next(data_loader_target)
+        end_t = datetime.now()
+
         logger.info(f"Iteration {i}/{training_iterations} batch retrieved! Elapsed time = "
                     f"{(end_t - start_t).total_seconds() // 60} m {(end_t - start_t).total_seconds() % 60} s")
 
@@ -146,7 +157,7 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
         source_label = source_label.to(device)
         data = {}
 
-        for clip in range(args.train.num_clips):
+        '''for clip in range(args.train.num_clips):
             # in case of multi-clip training one clip per time is processed
             for m in modalities:
                 data[m] = source_data[m][:, clip].to(device)
@@ -154,7 +165,15 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             logits, _ = action_classifier.forward(data)
             action_classifier.compute_loss(logits, source_label, loss_weight=1)
             action_classifier.backward(retain_graph=False)
-            action_classifier.compute_accuracy(logits, source_label)
+            action_classifier.compute_accuracy(logits, source_label)'''
+
+        for m in modalities:  # commento by suzie: args.train.num_clips (?)
+            data[m] = source_data[m].to(device)
+
+        logits, _ = action_classifier.forward(data)
+        action_classifier.compute_loss(logits, source_label, loss_weight=1)
+        action_classifier.backward(retain_graph=False)
+        action_classifier.compute_accuracy(logits, source_label)
 
         # update weights and zero gradients if total_batch samples are passed
         if gradient_accumulation_step:
@@ -208,13 +227,19 @@ def validate(model, val_loader, device, it, num_classes):
                 logits[m] = torch.zeros((args.test.num_clips, batch, num_classes)).to(device)
 
             clip = {}
-            for i_c in range(args.test.num_clips):
+            '''for i_c in range(args.test.num_clips):
                 for m in modalities:
                     clip[m] = data[m][:, i_c].to(device)
 
                 output, _ = model(clip)
                 for m in modalities:
-                    logits[m][i_c] = output[m]
+                    logits[m][i_c] = output[m]'''
+            for m in modalities:  # commento by suzie: args.TEST.num_clips (?)
+                clip[m] = data[m].to(device)
+
+            output, _ = model(clip)
+            for m in modalities:
+                logits[m] = output[m]
 
             for m in modalities:
                 logits[m] = torch.mean(logits[m], dim=0)
