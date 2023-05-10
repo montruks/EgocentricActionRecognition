@@ -1,6 +1,8 @@
 from torch import nn
 from torch.nn.init import *
 
+import TRNmodule
+
 
 # definition of Gradient Reversal Layer
 class GradReverse(Function):
@@ -17,7 +19,13 @@ class GradReverse(Function):
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_classes,train_segments=5, val_segments=5, beta=[1,1,1], frame_aggregation = 'trn', dropout_i=0.5, dropout_v=0.5, fc_dim=1024 ,share_params='Y'):
+    def __init__(self, num_class, frame_aggregation = 'trn',
+                 train_segments=5, val_segments=5,
+                 beta=[1,1,1],
+                 dropout_i=0.5, dropout_v=0.5,
+                 fc_dim=1024 ,
+                 share_params='Y'):
+                # miss something
         super().__init__()
         self.train_segments = train_segments
         self.val_segments = val_segments
@@ -29,6 +37,9 @@ class Classifier(nn.Module):
         self.share_params = share_params
         self.frame_aggregation = frame_aggregation
 
+        # Prepare DA
+        self._prepare_DA(num_class, base_model) # base model = 'resnet101' ??
+
     def _prepare_DA(self, num_class, base_model):  # convert the model to DA framework
 
         std = 0.001
@@ -38,6 +49,8 @@ class Classifier(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.dropout_i = nn.Dropout(p=self.dropout_rate_i)
         self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
+
+        # ------ FRAME-LEVEL layers (shared layers + source layers + domain layers) ------#
 
         # 1. shared feature layers
         self.fc_feature_shared_source = nn.Linear(self.feature_dim, feat_shared_dim)
@@ -64,6 +77,7 @@ class Classifier(nn.Module):
         constant_(self.fc_classifier_domain.bias, 0)
 
 
+
         if self.share_params == 'N':
             self.fc_feature_shared_target = nn.Linear(self.feature_dim, feat_shared_dim)
             normal_(self.fc_feature_shared_target.weight, 0, std)
@@ -77,13 +91,41 @@ class Classifier(nn.Module):
             normal_(self.fc_classifier_target.weight, 0, std)
             constant_(self.fc_classifier_target.bias, 0)
 
+            # BN for the above layers.
+            # Per ora non l'abbiamo messo
 
-        # Video Level
+
+        # ------ AGGEGATE FRAME-BASED features (frame feature --> video feature) ------#
+        if self.frame_aggregation == 'trn':  # TRN multiscale
+            self.num_bottleneck = 256  # or 512
+            self.TRN = TRNmodule.RelationModuleMultiScale(feat_shared_dim, self.num_bottleneck, self.train_segments)
+            self.bn_trn_S = nn.BatchNorm1d(self.num_bottleneck)
+            self.bn_trn_T = nn.BatchNorm1d(self.num_bottleneck)
+
+
+        # ------ VIDEO-LEVEL layers (source layers + domain layers) ------#
+        if self.frame_aggregation == 'avgpool':     # avgpool
+            feat_aggregated_dim = feat_shared_dim
+        if 'trn' in self.frame_aggregation:         # trn
+            feat_aggregated_dim = self.num_bottleneck
+
+        feat_video_dim = feat_aggregated_dim
+
+        # 1. source feature layers (video-level)
+        # lO USIAMO?
+        #self.fc_feature_video_source = nn.Linear(feat_aggregated_dim, feat_video_dim)
+        #normal_(self.fc_feature_video_source.weight, 0, std)
+        #constant_(self.fc_feature_video_source.bias, 0)
 
         # 2. domain feature layers (video-level)
         self.fc_feature_domain_video = nn.Linear(feat_aggregated_dim, feat_video_dim)
         normal_(self.fc_feature_domain_video.weight, 0, std)
         constant_(self.fc_feature_domain_video.bias, 0)
+
+        # 3. classifiers (video-level)
+        self.fc_classifier_video_source = nn.Linear(feat_video_dim, num_class)
+        normal_(self.fc_classifier_video_source.weight, 0, std)
+        constant_(self.fc_classifier_video_source.bias, 0)
 
         self.fc_classifier_domain_video = nn.Linear(feat_video_dim, 2)
         normal_(self.fc_classifier_domain_video.weight, 0, std)
@@ -100,8 +142,34 @@ class Classifier(nn.Module):
                 )
                 self.relation_domain_classifier_all += [relation_domain_classifier]
 
+        if self.share_params == 'N':  # capire meglio utilizzo share.params
+            self.fc_feature_video_target = nn.Linear(feat_aggregated_dim, feat_video_dim)
+            normal_(self.fc_feature_video_target.weight, 0, std)
+            constant_(self.fc_feature_video_target.bias, 0)
+            self.fc_feature_video_target_2 = nn.Linear(feat_video_dim, feat_video_dim)
+            normal_(self.fc_feature_video_target_2.weight, 0, std)
+            constant_(self.fc_feature_video_target_2.bias, 0)
+            self.fc_classifier_video_target = nn.Linear(feat_video_dim, num_class)
+            normal_(self.fc_classifier_video_target.weight, 0, std)
+            constant_(self.fc_classifier_video_target.bias, 0)
 
+        # BN for the above layers # skippato again
 
+        # attention mechanism # skip
+
+    # DEF CHE MANCANO:
+     '''def train               # TODO
+        def aggregate_frames    # TODO
+	    def final_output        # TODO
+    
+        def partialBN(self, enable):    # ?
+    
+	    def get_trans_attn(self, pred_domain):
+	    def get_general_attn(self, feat):
+	    def get_attn_feat_frame
+	    def get_attn_feat_relation             
+	    # if all attention >> no
+	    '''
 
     # Gsd
     def domain_classifier_frame(self, feat, beta): #beta?
@@ -142,8 +210,17 @@ class Classifier(nn.Module):
 
         return pred_fc_domain_relation_video
 
-    def forward(self, x):
 
+    # ???
+    def domainAlign(self, input_S, input_T, is_train, name_layer, alpha, num_segments, dim):
+        input_source = input_S.view((-1, dim, num_segments) + input_S.size()[-1:])
+            # reshape based on the segments (e.g. 80 x 512 --> 16 x 1 x 5 x 512)
+        input_target = input_T.view((-1, dim, num_segments) + input_T.size()[-1:])
+            # reshape based on the segments
+
+    def forward(self, x):
+        batch_source = input_source.size()[0]
+        batch_target = input_target.size()[0]
         # input_data is a list of tensors --> need to do pre-processing
         feat_base_source = input_source.view(-1, input_source.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
         feat_base_target = input_target.view(-1, input_target.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
@@ -182,6 +259,8 @@ class Classifier(nn.Module):
             attn_relation_target = feat_fc_video_target[:,
                                    0]  # assign random tensors to attention values to avoid runtime error'''
 
+        num_segments = feat.size()[1] # in def get_general_attn(self, feat):
+
         if 'trn' in self.frame_aggregation:
             feat_fc_video_source = feat_fc_source.view((-1, num_segments) + feat_fc_source.size()[-1:])
                 # reshape based on the segments (e.g. 640x512 --> 128x5x512)
@@ -206,10 +285,11 @@ class Classifier(nn.Module):
             # sum up relation features (ignore 1-relation)
             feat_fc_video_source = torch.sum(feat_fc_video_relation_source, 1)
             feat_fc_video_target = torch.sum(feat_fc_video_relation_target, 1)
+            # CHIEDERE SE UTILE
 
         else:
             raise NotImplementedError
-            # CHIEDERE SE UTILE
+
 
         '''if self.baseline_type == 'video':
             feat_all_source.append(feat_fc_video_source.view((batch_source,) + feat_fc_video_source.size()[-1:]))
@@ -228,4 +308,50 @@ class Classifier(nn.Module):
         pred_fc_video_target = self.fc_classifier_video_target(
             feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source(feat_fc_video_target)
 
-        return self.classifier(x), {}
+        if self.baseline_type == 'video':  # only store the prediction from classifier 1 (for now)
+            feat_all_source.append(pred_fc_video_source.view((batch_source,) + pred_fc_video_source.size()[-1:]))
+            feat_all_target.append(pred_fc_video_target.view((batch_target,) + pred_fc_video_target.size()[-1:]))
+
+        # === adversarial branch (video-level) ===#
+        pred_fc_domain_video_source = self.domain_classifier_video(feat_fc_video_source, beta)
+        pred_fc_domain_video_target = self.domain_classifier_video(feat_fc_video_target, beta)
+
+        pred_domain_all_source.append(
+            pred_fc_domain_video_source.view((batch_source,) + pred_fc_domain_video_source.size()[-1:]))
+        pred_domain_all_target.append(
+            pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:]))
+
+        # video relation-based discriminator
+        if self.frame_aggregation == 'trn':
+            num_relation = feat_fc_video_relation_source.size()[1]
+            pred_domain_all_source.append(pred_fc_domain_video_relation_source.view(
+                (batch_source, num_relation) + pred_fc_domain_video_relation_source.size()[-1:]))
+            pred_domain_all_target.append(pred_fc_domain_video_relation_target.view(
+                (batch_target, num_relation) + pred_fc_domain_video_relation_target.size()[-1:]))
+        else:
+            pred_domain_all_source.append(
+                pred_fc_domain_video_source)  # if not trn-m, add dummy tensors for relation features
+            pred_domain_all_target.append(pred_fc_domain_video_target)
+
+        # === final output ===#
+        output_source = self.final_output(pred_fc_source, pred_fc_video_source,
+                                          num_segments)  # select output from frame or video prediction
+        output_target = self.final_output(pred_fc_target, pred_fc_video_target, num_segments)
+
+        output_source_2 = output_source
+        output_target_2 = output_target
+
+        if self.ens_DA == 'MCD':
+            pred_fc_video_source_2 = self.fc_classifier_video_source_2(feat_fc_video_source)
+            pred_fc_video_target_2 = self.fc_classifier_video_target_2(
+                feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source_2(
+                feat_fc_video_target)
+            output_source_2 = self.final_output(pred_fc_source, pred_fc_video_source_2, num_segments)
+            output_target_2 = self.final_output(pred_fc_target, pred_fc_video_target_2, num_segments)
+
+        return output_source, output_source_2, pred_domain_all_source[::-1], feat_all_source[::-1], \
+               output_target, output_target_2, pred_domain_all_target[ ::-1], feat_all_target[::-1]
+                # reverse the order of feature list due to some multi-gpu issues
+        #attn_relation_source, attn_relation_target,
+
+        # return self.classifier(x), {}  #default
