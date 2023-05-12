@@ -1,10 +1,15 @@
-from models import ClassifierTempAverage as CTA
+from models import FullLayerClassifierTAP
+from models import FullLayerClassifierTRN
+from models import trainLoopFLC
+from models import testLoopFLC
 from SavedFeatureDataset import SavedFeatureDataset as SFD
 import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.functional as F
+
+
 # optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 
@@ -31,10 +36,19 @@ def train(dataloader, model, criterion, optimizer, num_epochs):
     print('Finished Training')
 
 
-test_dataset = SFD(dataType='D1', train=False)
-classifier = CTA.Classifier(num_classes=7, num_features=1024)
+train_dataset = SFD(dataType='D1', train=True)
+trainloader = DataLoader(dataset=train_dataset, batch_size=64, shuffle=True)
+print('Lunghezza Dataset di training:', len(trainloader.dataset))
+classifier = FullLayerClassifierTRN(num_features=1024, num_classes=8, num_frames=5)
 loss = nn.CrossEntropyLoss()
 optimizer = optim.Adam(classifier.parameters(), lr=0.001)
+trainLoopFLC(model=classifier, trainloader=trainloader, criterion=loss, optimizer=optimizer, epochs=10)
+print("Finito train")
 
-train(dataloader=DataLoader(dataset=test_dataset, batch_size=64, shuffle=True), model=classifier, criterion=loss, optimizer=optimizer,
-      num_epochs=1)
+test_dataset = SFD(dataType='D1', train=False)
+testloader = DataLoader(dataset=test_dataset, batch_size=64, shuffle=True)
+print('Lunghezza Dataset di training:', len(testloader.dataset))
+test_loss, correct = testLoopFLC(model=classifier, testloader=testloader, criterion=loss)
+
+# train(dataloader=DataLoader(dataset=test_dataset, batch_size=64, shuffle=True), model=classifier, criterion=loss,
+# optimizer=optimizer, num_epochs=1)

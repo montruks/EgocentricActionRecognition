@@ -6,6 +6,10 @@ import platform
 
 class SavedFeatureDataset(data.Dataset):
     def __init__(self, dataType, train=False):
+        """
+        dataType: Domain of data
+        train: Boolean
+        """
         if platform.node() == 'LAPTOP-DANIELE':
             path_label = 'C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/train_val'
             path_feature = 'C:/Users/39334/Desktop/Poli/EgocentricActionRecognition/saved_features'
@@ -14,7 +18,7 @@ class SavedFeatureDataset(data.Dataset):
             path_feature = 'C:/Users/matte/Desktop/Workspace/EgocentricActionRecognition/saved_features'
         if train:
             path_label = path_label + '/' + dataType + '_' + 'train.pkl'
-            path_feature = path_feature + '/' + 'saved_feat_I3D_' + 'data' + '_train.pkl'
+            path_feature = path_feature + '/' + 'saved_feat_I3D_' + dataType + '_train.pkl'
         else:
             path_feature = path_feature + '/' + 'saved_feat_I3D_' + dataType + '_test.pkl'
             path_label = path_label + '/' + dataType + '_' + 'test.pkl'
