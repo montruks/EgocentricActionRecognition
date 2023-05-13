@@ -56,7 +56,7 @@ def main():
         logger.info('{} Net\tModality: {}'.format(args.models[m].model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
-        models[m] = getattr(model_list, args.models[m].model)()
+        models[m] = getattr(model_list, args.models[m].model)(num_class=8)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
@@ -155,7 +155,8 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
 
         ''' Action recognition'''
         source_label = source_label.to(device)
-        data = {}
+        input_source = {}
+        input_target = {}
 
         '''for clip in range(args.train.num_clips):
             # in case of multi-clip training one clip per time is processed
@@ -168,9 +169,10 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             action_classifier.compute_accuracy(logits, source_label)'''
 
         for m in modalities:  # commento by suzie: args.train.num_clips (?)
-            data[m] = source_data[m].to(device)
+            input_source[m] = source_data[m].to(device)
+            input_target[m] = target_data[m].to(device)
 
-        logits, _ = action_classifier.forward(data)
+        logits = action_classifier(input_source, input_target)
         action_classifier.compute_loss(logits, source_label, loss_weight=1)
         action_classifier.backward(retain_graph=False)
         action_classifier.compute_accuracy(logits, source_label)
