@@ -356,11 +356,6 @@ class Classifier(nn.Module):
         pred_domain_all_target.append(
             pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:]))
 
-        pred_domain_all_source.append(
-            pred_fc_domain_video_source.view((batch_source,) + pred_fc_domain_video_source.size()[-1:]))
-        pred_domain_all_target.append(
-            pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:]))
-
         # video relation-based discriminator
         if self.frame_aggregation == 'trn':
             num_relation = feat_fc_video_relation_source.size()[1]
@@ -393,8 +388,8 @@ class Classifier(nn.Module):
         # return output_source, output_source_2, pred_domain_all_source[::-1], feat_all_source[::-1], \
         #        output_target, output_target_2, pred_domain_all_target[ ::-1], feat_all_target[::-1]
         # Dani: provo a cambiare output per adattarlo a quello richiesto da action recognition
-        return [pred_domain_all_source[::-1], pred_domain_all_target[::-1]], [feat_all_source[::-1],
-                                                                              feat_all_target[::-1]]
+        # return [pred_domain_all_source[::-1], pred_domain_all_target[::-1]], [feat_all_source[::-1], feat_all_target[::-1]]
+        return output_source, {'source': pred_domain_all_source[::-1], 'target': pred_domain_all_target[::-1]}
         # reverse the order of feature list due to some multi-gpu issues
         # attn_relation_source, attn_relation_target,
 
