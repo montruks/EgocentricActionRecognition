@@ -172,7 +172,7 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             input_source[m] = source_data[m].to(device)
             input_target[m] = target_data[m].to(device)
 
-        logits = action_classifier(input_source, input_target)
+        logits, features = action_classifier(input_source, input_target)
         action_classifier.compute_loss(logits, source_label, loss_weight=1)
         action_classifier.backward(retain_graph=False)
         action_classifier.compute_accuracy(logits, source_label)
