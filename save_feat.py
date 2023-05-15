@@ -59,6 +59,12 @@ def main():
     if args.action == "save":
         augmentations = {"train": train_augmentations, "test": test_augmentations}
         # the only action possible with this script is "save"
+        data = EpicKitchensDataset(args.dataset.shift.split("-")[1], modalities,
+                                   args.split, args.dataset,
+                                   args.save.num_frames_per_clip,
+                                   args.save.num_clips, args.save.dense_sampling,
+                                   augmentations[args.split], additional_info=True,
+                                   **{"save": args.split})
         loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[1], modalities,
                                                                  args.split, args.dataset,
                                                                  args.save.num_frames_per_clip,
