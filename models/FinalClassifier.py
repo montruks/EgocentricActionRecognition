@@ -238,7 +238,9 @@ class Classifier(nn.Module):
 
         return pred_fc_domain_relation_video
 
-    def forward(self, input_source, input_target, is_train=True, reverse=False):
+    def forward(self, input_source, input_target=None, is_train=True, reverse=False):
+        if input_target is None:
+            input_target = input_source
         # batch_source, batch_target non sappiamo se servono , ma sono legati a feat_all_source e feat_all_target
         batch_source = input_source.size()[0]
         batch_target = input_target.size()[0]
