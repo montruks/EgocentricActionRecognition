@@ -240,13 +240,14 @@ def validate(model, val_loader, device, it, num_classes):
                 clip[m] = data[m].to(device)
 
             output, _ = model(clip)
-            for m in modalities:
-                logits[m] = output[m]
+            # for m in modalities:
+            #     logits[m] = output[m]
 
-            for m in modalities:
-                logits[m] = torch.mean(logits[m], dim=0)
+            # for m in modalities:
+            #     logits[m] = torch.mean(logits[m], dim=0)
 
-            model.compute_accuracy(logits, label)
+            # model.compute_accuracy(logits, label)
+            model.compute_accuracy(output, label)
 
             if (i_val + 1) % (len(val_loader) // 5) == 0:
                 logger.info("[{}/{}] top1= {:.3f}% top5 = {:.3f}%".format(i_val + 1, len(val_loader),
