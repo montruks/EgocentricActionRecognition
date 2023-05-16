@@ -58,9 +58,10 @@ class ActionRecognition(tasks.Task, ABC):
                                                 weight_decay=model_args[m].weight_decay,
                                                 momentum=model_args[m].sgd_momentum)
 
-    def forward(self, input_source: Dict[str, torch.Tensor], input_target: Dict[str, torch.Tensor], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def forward(self, input_source: Dict[str, torch.Tensor], input_target: Dict[str, torch.Tensor] = None, **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         # def forward(self, x: Dict[str, torch.Tensor], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-
+        if input_target is None:
+            input_target = input_source
         """Forward step of the task
 
         Parameters
