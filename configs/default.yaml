@@ -43,6 +43,7 @@ dataset:
 models:
   RGB:
     model: Classifier
+    frame_aggregation: 'avgpool' #'trn'
     normalize: False
     kwargs: {}
     lr_steps: 3000

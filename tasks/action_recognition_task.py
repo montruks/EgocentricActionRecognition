@@ -101,7 +101,7 @@ class ActionRecognition(tasks.Task, ABC):
             weight of the classification loss, by default 1.0
         """
         loss = 0
-        for l in range(0, 3):
+        for l in range(len(features['source']['RGB'])):
             pred_domain_source_single = features['source']['RGB'][l].view(-1, features['source']['RGB'][l].size()[-1])
             pred_domain_target_single = features['target']['RGB'][l].view(-1, features['target']['RGB'][l].size()[-1])
 

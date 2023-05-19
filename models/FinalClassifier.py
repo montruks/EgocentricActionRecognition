@@ -18,11 +18,11 @@ class GradReverse(Function):
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_class, frame_aggregation='trn',
+    def __init__(self, num_class, frame_aggregation, baseline_type='video',
                  train_segments=5, val_segments=5,
                  beta=[1, 1, 1], mu=0,
                  dropout_i=0.5, dropout_v=0.5,
-                 fc_dim=1024, baseline_type='video',
+                 fc_dim=1024,
                  share_params='Y',
                  ens_DA=None):
         # miss something
@@ -191,11 +191,11 @@ class Classifier(nn.Module):
 
         output = base_out
 
-        if self.baseline_type == 'tsn':
+        '''if self.baseline_type == 'tsn':
             if self.reshape:
                 base_out = base_out.view((-1, num_segments) + base_out.size()[1:])  # e.g. 16 x 3 x 12 (3 segments)
 
-            output = base_out.mean(1)  # e.g. 16 x 12
+            output = base_out.mean(1)  # e.g. 16 x 12'''
 
         return output
 
@@ -237,6 +237,20 @@ class Classifier(nn.Module):
         pred_fc_domain_relation_video = pred_fc_domain_relation_video.view(-1, 2)
 
         return pred_fc_domain_relation_video
+
+    # AvgPoool
+    def aggregate_frames(self, feat_fc, num_segments):  # pred_domain
+        feat_fc_video = feat_fc.view((-1, 1, num_segments) + feat_fc.size()[-1:])  # reshape based on the segments (e.g. 16 x 1 x 5 x 512)
+        '''if self.use_attn == 'TransAttn':  # get the attention weighting
+            weights_attn = self.get_trans_attn(pred_domain)
+            weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[
+                -1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
+            feat_fc_video = (weights_attn + 1) * feat_fc_video'''
+
+        feat_fc_video = nn.AvgPool2d([num_segments, 1])(feat_fc_video)  # e.g. 16 x 1 x 1 x 512
+        feat_fc_video = feat_fc_video.squeeze(1).squeeze(1)  # e.g. 16 x 512
+
+        return feat_fc_video
 
     def forward(self, input_source, input_target, is_train=True, reverse=False):
         # batch_source, batch_target non sappiamo se servono , ma sono legati a feat_all_source e feat_all_target
@@ -287,16 +301,16 @@ class Classifier(nn.Module):
             feat_fc_target) if self.share_params == 'N' else self.fc_classifier_source(feat_fc_target)
 
         ### aggregate the frame-based features to video-based features ###
-        ''' if self.frame_aggregation == 'avgpool':
-            feat_fc_video_source = self.aggregate_frames(feat_fc_source, num_segments, pred_fc_domain_frame_source)
-            feat_fc_video_target = self.aggregate_frames(feat_fc_target, num_segments, pred_fc_domain_frame_target)
+        if self.frame_aggregation == 'avgpool':
+            feat_fc_video_source = self.aggregate_frames(feat_fc_source, num_segments)  # , pred_fc_domain_frame_source
+            feat_fc_video_target = self.aggregate_frames(feat_fc_target, num_segments)  # , pred_fc_domain_frame_target)
 
-            attn_relation_source = feat_fc_video_source[:,
+            '''attn_relation_source = feat_fc_video_source[:,
                                    0]  # assign random tensors to attention values to avoid runtime error
             attn_relation_target = feat_fc_video_target[:,
                                    0]  # assign random tensors to attention values to avoid runtime error'''
 
-        if 'trn' in self.frame_aggregation:
+        elif self.frame_aggregation == 'trn':
             feat_fc_video_source = feat_fc_source.view((-1, num_segments) + feat_fc_source.size()[-1:])
             # reshape based on the segments (e.g. 640x512 --> 128x5x512)
             feat_fc_video_target = feat_fc_target.view((-1, num_segments) + feat_fc_target.size()[-1:])
@@ -339,9 +353,11 @@ class Classifier(nn.Module):
             feat_fc_video_source = GradReverse.apply(feat_fc_video_source, self.mu)
             feat_fc_video_target = GradReverse.apply(feat_fc_video_target, self.mu)
 
+        # Only source
         pred_fc_video_source = self.fc_classifier_video_source(feat_fc_video_source)
         pred_fc_video_target = self.fc_classifier_video_target(
             feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source(feat_fc_video_target)
+
 
         if self.baseline_type == 'video':  # only store the prediction from classifier 1 (for now)
             feat_all_source.append(pred_fc_video_source.view((batch_source,) + pred_fc_video_source.size()[-1:]))
@@ -363,10 +379,8 @@ class Classifier(nn.Module):
                 (batch_source, num_relation) + pred_fc_domain_video_relation_source.size()[-1:]))
             pred_domain_all_target.append(pred_fc_domain_video_relation_target.view(
                 (batch_target, num_relation) + pred_fc_domain_video_relation_target.size()[-1:]))
-        else:
-            raise NotImplementedError
-            '''pred_domain_all_source.append(
-                pred_fc_domain_video_source)  # if not trn-m, add dummy tensors for relation features
+        '''else:
+            pred_domain_all_source.append(pred_fc_domain_video_source)  # if not trn-m, add dummy tensors for relation features
             pred_domain_all_target.append(pred_fc_domain_video_target)'''
 
         # === final output ===#
