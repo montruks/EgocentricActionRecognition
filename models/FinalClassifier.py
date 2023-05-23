@@ -342,9 +342,9 @@ class Classifier(nn.Module):
         pred_domain_all_target.append(
             pred_fc_domain_frame_target.view((batch_target, num_segments) + pred_fc_domain_frame_target.size()[-1:]))
 
-        if self.use_attn != 'none':  # attend the frame-level features only
+        '''if self.use_attn != 'none':  # attend the frame-level features only
             feat_fc_source = self.get_attn_feat_frame(feat_fc_source, pred_fc_domain_frame_source)
-            feat_fc_target = self.get_attn_feat_frame(feat_fc_target, pred_fc_domain_frame_target)
+            feat_fc_target = self.get_attn_feat_frame(feat_fc_target, pred_fc_domain_frame_target)'''
 
         # === source layers (frame-level) === # CHIEDERE (CLASSIFICATORE DI AZIONE)
         pred_fc_source = self.fc_classifier_source(feat_fc_source)
