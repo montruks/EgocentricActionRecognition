@@ -403,7 +403,7 @@ class Classifier(nn.Module):
         #        output_target, output_target_2, pred_domain_all_target[ ::-1], feat_all_target[::-1]
         # Dani: provo a cambiare output per adattarlo a quello richiesto da action recognition
         # return [pred_domain_all_source[::-1], pred_domain_all_target[::-1]], [feat_all_source[::-1], feat_all_target[::-1]]
-        return output_source, {'source': pred_domain_all_source[::-1], 'target': pred_domain_all_target[::-1]}
+        return output_source, {'source': pred_domain_all_source, 'target': pred_domain_all_target}
         # reverse the order of feature list due to some multi-gpu issues
         # attn_relation_source, attn_relation_target,
 

@@ -42,8 +42,9 @@ dataset:
 # these are the action recognition models for each modality
 models:
   RGB:
-    model: Classifier
-    frame_aggregation: 'avgpool' #'trn'
+    model: ClassifierGSD
+    frame_aggregation: 'trn' #'avgpool'
+    weight: [0,0,0,1]
     normalize: False
     kwargs: {}
     lr_steps: 3000

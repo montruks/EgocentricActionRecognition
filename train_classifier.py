@@ -74,7 +74,13 @@ def main():
         # notice, here it is multiplied by tot_batch/batch_size since gradient accumulation technique is adopted
         training_iterations = args.train.num_iter * (args.total_batch // args.batch_size)
         # all dataloaders are generated here
-        train_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
+        source_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
+                                                                       'train', args.dataset, None, None, None,
+                                                                       None, load_feat=True),
+                                                   batch_size=args.batch_size, shuffle=True,
+                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+
+        target_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
                                                                        'train', args.dataset, None, None, None,
                                                                        None, load_feat=True),
                                                    batch_size=args.batch_size, shuffle=True,
@@ -85,7 +91,7 @@ def main():
                                                                      None, load_feat=True),
                                                  batch_size=args.batch_size, shuffle=False,
                                                  num_workers=args.dataset.workers, pin_memory=True, drop_last=False)
-        train(action_classifier, train_loader, val_loader, device, num_classes)
+        train(action_classifier, source_loader, target_loader, val_loader, device, num_classes)
 
     elif args.action == "validate":
         if args.resume_from is not None:
@@ -99,7 +105,7 @@ def main():
         validate(action_classifier, val_loader, device, action_classifier.current_iter, num_classes)
 
 
-def train(action_classifier, train_loader, val_loader, device, num_classes):
+def train(action_classifier, source_loader, target_loader, val_loader, device, num_classes):
     """
     function to train the model on the test set
     action_classifier: Task containing the model to be trained
@@ -110,8 +116,8 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
     """
     global training_iterations, modalities
 
-    data_loader_source = iter(train_loader)
-    data_loader_target = iter(val_loader) # aggiunta nostra per iterare dopo
+    data_loader_source = iter(source_loader)
+    data_loader_target = iter(target_loader)  # aggiunta nostra per iterare dopo
 
     action_classifier.train(True)
     action_classifier.zero_grad()
@@ -138,7 +144,7 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
         try:
             source_data, source_label = next(data_loader_source)
         except StopIteration:
-            data_loader_source = iter(train_loader)
+            data_loader_source = iter(source_loader)
             source_data, source_label = next(data_loader_source)
         end_t = datetime.now()
 
@@ -147,7 +153,7 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
         try:
             target_data, target_label = next(data_loader_target)
         except StopIteration:
-            data_loader_target = iter(val_loader)
+            data_loader_target = iter(target_loader)
             target_data, target_label = next(data_loader_target)
         end_t = datetime.now()
 
@@ -174,7 +180,7 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             input_target[m] = target_data[m].to(device)
 
         logits, features = action_classifier(input_source, input_target)
-        action_classifier.compute_loss(logits, source_label, features, loss_weight=1)
+        action_classifier.compute_loss(logits, source_label, features, loss_weight=args.models['RGB'].weight)
         action_classifier.backward(retain_graph=False)
         action_classifier.compute_accuracy(logits, source_label)
 
