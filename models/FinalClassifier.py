@@ -22,6 +22,7 @@ class Classifier(nn.Module):
                  train_segments=5, val_segments=5,
                  beta=[1, 1, 1], mu=0,
                  dropout_i=0.5, dropout_v=0.5,
+                 use_attn='general', use_attn_frame='none',
                  fc_dim=1024,
                  share_params='Y',
                  ens_DA=None):
@@ -41,6 +42,10 @@ class Classifier(nn.Module):
         self.ens_DA = ens_DA
         self.before_softmax = True
         self.softmax = nn.Softmax
+
+        # Attention
+        self.use_attn = use_attn
+        self.use_attn_frame = use_attn_frame
 
         # Prepare DA
         self._prepare_DA(num_class)  # base model = 'resnet101' ??
@@ -163,22 +168,63 @@ class Classifier(nn.Module):
 
         # BN for the above layers # skippato again
 
-        # attention mechanism # skip
+        # ------ attention mechanism ------#
+        # conventional attention
+        if self.use_attn == 'general':
+            self.attn_layer = nn.Sequential(
+                nn.Linear(feat_aggregated_dim, feat_aggregated_dim),
+                nn.Tanh(),
+                nn.Linear(feat_aggregated_dim, 1)
+            )
+
 
     # DEF CHE MANCANO
 
     '''def train               # TODO
-        def aggregate_frames    # TODO
-        def final_output        # TODO
-
         def partialBN(self, enable):    # ?
-
-        def get_trans_attn(self, pred_domain):
-        def get_general_attn(self, feat):
-        def get_attn_feat_frame
-        def get_attn_feat_relation             
-        # if all attention >> no
+        domain alugn
     '''
+
+    def get_trans_attn(self, pred_domain):
+        softmax = nn.Softmax(dim=1)
+        logsoftmax = nn.LogSoftmax(dim=1)
+        entropy = torch.sum(-softmax(pred_domain) * logsoftmax(pred_domain), 1)
+        weights = 1 - entropy
+
+        return weights
+
+    def get_general_attn(self, feat):
+        num_segments = feat.size()[1]
+        feat = feat.view(-1, feat.size()[-1])  # reshape features: 128x4x256 --> (128x4)x256
+        weights = self.attn_layer(feat)  # e.g. (128x4)x1
+        weights = weights.view(-1, num_segments, weights.size()[-1])  # reshape attention weights: (128x4)x1 --> 128x4x1
+        weights = F.softmax(weights, dim=1)  # softmax over segments ==> 128x4x1
+
+        return weights
+
+    def get_attn_feat_frame(self, feat_fc, pred_domain):  # not used for now
+        if self.use_attn == 'TransAttn':
+            weights_attn = self.get_trans_attn(pred_domain)
+        elif self.use_attn == 'general':
+            weights_attn = self.get_general_attn(feat_fc)
+
+        weights_attn = weights_attn.view(-1, 1).repeat(1,
+                                                       feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 512)
+        feat_fc_attn = (weights_attn + 1) * feat_fc
+
+        return feat_fc_attn
+
+    def get_attn_feat_relation(self, feat_fc, pred_domain, num_segments):
+        if self.use_attn == 'TransAttn':
+            weights_attn = self.get_trans_attn(pred_domain)
+        elif self.use_attn == 'general':
+            weights_attn = self.get_general_attn(feat_fc)
+
+        weights_attn = weights_attn.view(-1, num_segments - 1, 1).repeat(1, 1, feat_fc.size()[
+            -1])  # reshape & repeat weights (e.g. 16 x 4 x 256)
+        feat_fc_attn = (weights_attn + 1) * feat_fc
+
+        return feat_fc_attn, weights_attn[:, :, 0]
 
     def final_output(self, pred, pred_video, num_segments):
         if self.baseline_type == 'video':
@@ -241,11 +287,11 @@ class Classifier(nn.Module):
     # AvgPoool
     def aggregate_frames(self, feat_fc, num_segments):  # pred_domain
         feat_fc_video = feat_fc.view((-1, 1, num_segments) + feat_fc.size()[-1:])  # reshape based on the segments (e.g. 16 x 1 x 5 x 512)
-        '''if self.use_attn == 'TransAttn':  # get the attention weighting
+        if self.use_attn == 'TransAttn':  # get the attention weighting
             weights_attn = self.get_trans_attn(pred_domain)
             weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[
                 -1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
-            feat_fc_video = (weights_attn + 1) * feat_fc_video'''
+            feat_fc_video = (weights_attn + 1) * feat_fc_video
 
         feat_fc_video = nn.AvgPool2d([num_segments, 1])(feat_fc_video)  # e.g. 16 x 1 x 1 x 512
         feat_fc_video = feat_fc_video.squeeze(1).squeeze(1)  # e.g. 16 x 512
@@ -295,6 +341,10 @@ class Classifier(nn.Module):
         pred_domain_all_target.append(
             pred_fc_domain_frame_target.view((batch_target, num_segments) + pred_fc_domain_frame_target.size()[-1:]))
 
+        if self.use_attn_frame != 'none':  # attend the frame-level features only
+            feat_fc_source = self.get_attn_feat_frame(feat_fc_source, pred_fc_domain_frame_source)
+            feat_fc_target = self.get_attn_feat_frame(feat_fc_target, pred_fc_domain_frame_target)
+
         # === source layers (frame-level) === # CHIEDERE (CLASSIFICATORE DI AZIONE)
         pred_fc_source = self.fc_classifier_source(feat_fc_source)
         pred_fc_target = self.fc_classifier_target(
@@ -305,10 +355,8 @@ class Classifier(nn.Module):
             feat_fc_video_source = self.aggregate_frames(feat_fc_source, num_segments)  # , pred_fc_domain_frame_source
             feat_fc_video_target = self.aggregate_frames(feat_fc_target, num_segments)  # , pred_fc_domain_frame_target)
 
-            '''attn_relation_source = feat_fc_video_source[:,
-                                   0]  # assign random tensors to attention values to avoid runtime error
-            attn_relation_target = feat_fc_video_target[:,
-                                   0]  # assign random tensors to attention values to avoid runtime error'''
+            attn_relation_source = feat_fc_video_source[:,0]  # assign random tensors to attention values to avoid runtime error
+            attn_relation_target = feat_fc_video_target[:,0]  # assign random tensors to attention values to avoid runtime error
 
         elif self.frame_aggregation == 'trn':
             feat_fc_video_source = feat_fc_source.view((-1, num_segments) + feat_fc_source.size()[-1:])
@@ -326,12 +374,16 @@ class Classifier(nn.Module):
             pred_fc_domain_video_relation_target = self.domain_classifier_relation(feat_fc_video_relation_target,
                                                                                    self.beta)
 
-            # skippata l'attention
-            # attn_relation_source = feat_fc_video_relation_source[:, :,
-            #                      0]  # assign random tensors to attention values to avoid runtime error
-            # attn_relation_target = feat_fc_video_relation_target[:, :,
-            #                      0]  # assign random tensors to attention values to avoid runtime error
-            # forse inutile
+            # transferable attention
+            if self.use_attn != 'none':  # get the attention weighting
+                feat_fc_video_relation_source, attn_relation_source = self.get_attn_feat_relation(
+                    feat_fc_video_relation_source, pred_fc_domain_video_relation_source, num_segments)
+                feat_fc_video_relation_target, attn_relation_target = self.get_attn_feat_relation(
+                    feat_fc_video_relation_target, pred_fc_domain_video_relation_target, num_segments)
+            else:
+                attn_relation_source = feat_fc_video_relation_source[:, :, 0]  # assign random tensors to attention values to avoid runtime error
+                attn_relation_target = feat_fc_video_relation_target[:, :, 0]  # assign random tensors to attention values to avoid runtime error
+
 
             # sum up relation features (ignore 1-relation)
             feat_fc_video_source = torch.sum(feat_fc_video_relation_source, 1)
