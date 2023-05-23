@@ -44,6 +44,7 @@ models:
   RGB:
     model: ClassifierGSD
     frame_aggregation: 'trn' #'avgpool'
+    attn: 'none'
     weight: [0,0,0,1]
     normalize: False
     kwargs: {}

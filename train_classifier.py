@@ -57,7 +57,8 @@ def main():
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
         models[m] = getattr(model_list, args.models[m].model)(num_class=8,
-                                                              frame_aggregation=args.models[m].frame_aggregation)
+                                                              frame_aggregation=args.models[m].frame_aggregation,
+                                                              use_attn=args.models[m].attn)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
