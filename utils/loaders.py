@@ -9,7 +9,6 @@ import os
 import os.path
 from utils.logger import logger
 
-
 class EpicKitchensDataset(data.Dataset, ABC):
     def __init__(self, split, modalities, mode, dataset_conf, num_frames_per_clip, num_clips, dense_sampling,
                  transform=None, load_feat=False, additional_info=False, **kwargs):
@@ -59,8 +58,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
                 # load features for each modality
                 model_features = pd.DataFrame(pd.read_pickle(os.path.join("saved_features",
                                                                           self.dataset_conf[m].features_name + "_" +
-                                                                          pickle_name))['features'])[
-                    ["uid", "features_" + m]]
+                                                                          pickle_name))['features'])[["uid", "features_" + m]]
                 if self.model_features is None:
                     self.model_features = model_features
                 else:
@@ -95,6 +93,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         return frames
 
+
     def _get_val_indices(self, record, modality):
         ##################################################################
         # TODO: implement sampling for testing mode                      #
@@ -121,6 +120,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
             frames = frames + frames_tmp
 
         return frames
+
 
     def __getitem__(self, index):
 
@@ -195,7 +195,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
                 else:
                     raise FileNotFoundError
             return [img]
-
+        
         else:
             raise NotImplementedError("Modality not implemented")
 

@@ -58,7 +58,10 @@ class ActionRecognition(tasks.Task, ABC):
                                                 weight_decay=model_args[m].weight_decay,
                                                 momentum=model_args[m].sgd_momentum)
 
-    def forward(self, data: Dict[str, torch.Tensor], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def forward(self, input_source: Dict[str, torch.Tensor], input_target: Dict[str, torch.Tensor] = None, **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        # def forward(self, x: Dict[str, torch.Tensor], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        if input_target is None:
+            input_target = input_source
         """Forward step of the task
 
         Parameters
@@ -74,7 +77,8 @@ class ActionRecognition(tasks.Task, ABC):
         logits = {}
         features = {}
         for i_m, m in enumerate(self.modalities):
-            logits[m], feat = self.task_models[m](x=data[m], **kwargs)
+            # logits[m], feat = self.task_models[m](x = data[m], **kwargs)
+            logits[m], feat = self.task_models[m](input_source[m], input_target[m], **kwargs)
             if i_m == 0:
                 for k in feat.keys():
                     features[k] = {}
@@ -83,7 +87,8 @@ class ActionRecognition(tasks.Task, ABC):
 
         return logits, features
 
-    def compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, loss_weight: float=1.0):
+    #  compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, loss_weight: float=1.0):
+    def compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, features, loss_weight):
         """Fuse the logits from different modalities and compute the classification loss.
 
         Parameters
@@ -95,11 +100,29 @@ class ActionRecognition(tasks.Task, ABC):
         loss_weight : float, optional
             weight of the classification loss, by default 1.0
         """
-        fused_logits = reduce(lambda x, y: x + y, logits.values())
-        loss = self.criterion(fused_logits, label) / self.num_clips
-        # Update the loss value, weighting it by the ratio of the batch size to the total 
+        loss = 0
+        for l in range(len(features['source']['RGB'])):
+            pred_domain_source_single = features['source']['RGB'][l].view(-1, features['source']['RGB'][l].size()[-1])
+            pred_domain_target_single = features['target']['RGB'][l].view(-1, features['target']['RGB'][l].size()[-1])
+
+            source_domain_label = torch.zeros(pred_domain_source_single.size(0)).long()
+            target_domain_label = torch.ones(pred_domain_target_single.size(0)).long()
+            domain_label = torch.cat((source_domain_label, target_domain_label), 0)
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            domain_label = domain_label.to(device)
+
+            pred_domain = torch.cat((pred_domain_source_single, pred_domain_target_single), 0)
+
+            adversarial_loss = self.criterion(pred_domain, domain_label) / pred_domain_source_single.size(0) * self.batch_size
+            loss += torch.mean(loss_weight[l] * adversarial_loss)
+
+        fused_logits = reduce(lambda x, y: x + y, logits.values())  # somma sulle modalità
+        classification_loss = torch.mean(loss_weight[-1] * self.criterion(fused_logits, label))
+        loss += classification_loss
+        # Update the loss value, weighting it by the ratio of the batch size to the total
         # batch size (for gradient accumulation)
-        self.loss.update(torch.mean(loss_weight * loss) / (self.total_batch / self.batch_size), self.batch_size)
+        self.loss.update(loss / (self.total_batch / self.batch_size), self.batch_size)
 
     def compute_accuracy(self, logits: Dict[str, torch.Tensor], label: torch.Tensor):
         """Fuse the logits from different modalities and compute the classification accuracy.

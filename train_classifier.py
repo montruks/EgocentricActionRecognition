@@ -56,7 +56,9 @@ def main():
         logger.info('{} Net\tModality: {}'.format(args.models[m].model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
-        models[m] = getattr(model_list, args.models[m].model)(1024)
+        models[m] = getattr(model_list, args.models[m].model)(num_class=8,
+                                                              frame_aggregation=args.models[m].frame_aggregation,
+                                                              use_attn=args.models[m].attn)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
@@ -73,7 +75,13 @@ def main():
         # notice, here it is multiplied by tot_batch/batch_size since gradient accumulation technique is adopted
         training_iterations = args.train.num_iter * (args.total_batch // args.batch_size)
         # all dataloaders are generated here
-        train_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
+        source_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
+                                                                       'train', args.dataset, None, None, None,
+                                                                       None, load_feat=True),
+                                                   batch_size=args.batch_size, shuffle=True,
+                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+
+        target_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
                                                                        'train', args.dataset, None, None, None,
                                                                        None, load_feat=True),
                                                    batch_size=args.batch_size, shuffle=True,
@@ -84,7 +92,7 @@ def main():
                                                                      None, load_feat=True),
                                                  batch_size=args.batch_size, shuffle=False,
                                                  num_workers=args.dataset.workers, pin_memory=True, drop_last=False)
-        train(action_classifier, train_loader, val_loader, device, num_classes)
+        train(action_classifier, source_loader, target_loader, val_loader, device, num_classes)
 
     elif args.action == "validate":
         if args.resume_from is not None:
@@ -98,7 +106,7 @@ def main():
         validate(action_classifier, val_loader, device, action_classifier.current_iter, num_classes)
 
 
-def train(action_classifier, train_loader, val_loader, device, num_classes):
+def train(action_classifier, source_loader, target_loader, val_loader, device, num_classes):
     """
     function to train the model on the test set
     action_classifier: Task containing the model to be trained
@@ -109,7 +117,9 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
     """
     global training_iterations, modalities
 
-    data_loader_source = iter(train_loader)
+    data_loader_source = iter(source_loader)
+    data_loader_target = iter(target_loader)  # aggiunta nostra per iterare dopo
+
     action_classifier.train(True)
     action_classifier.zero_grad()
     iteration = action_classifier.current_iter * (args.total_batch // args.batch_size)
@@ -135,8 +145,17 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
         try:
             source_data, source_label = next(data_loader_source)
         except StopIteration:
-            data_loader_source = iter(train_loader)
+            data_loader_source = iter(source_loader)
             source_data, source_label = next(data_loader_source)
+        end_t = datetime.now()
+
+        # aggiunta nostra: iteratore aggiuntivo sui target
+
+        try:
+            target_data, target_label = next(data_loader_target)
+        except StopIteration:
+            data_loader_target = iter(target_loader)
+            target_data, target_label = next(data_loader_target)
         end_t = datetime.now()
 
         logger.info(f"Iteration {i}/{training_iterations} batch retrieved! Elapsed time = "
@@ -144,9 +163,10 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
 
         ''' Action recognition'''
         source_label = source_label.to(device)
-        data = {}
+        input_source = {}
+        input_target = {}
 
-        for clip in range(args.train.num_clips):
+        '''for clip in range(args.train.num_clips):
             # in case of multi-clip training one clip per time is processed
             for m in modalities:
                 data[m] = source_data[m][:, clip].to(device)
@@ -154,7 +174,16 @@ def train(action_classifier, train_loader, val_loader, device, num_classes):
             logits, _ = action_classifier.forward(data)
             action_classifier.compute_loss(logits, source_label, loss_weight=1)
             action_classifier.backward(retain_graph=False)
-            action_classifier.compute_accuracy(logits, source_label)
+            action_classifier.compute_accuracy(logits, source_label)'''
+
+        for m in modalities:  # commento by suzie: args.train.num_clips (?)
+            input_source[m] = source_data[m].to(device)
+            input_target[m] = target_data[m].to(device)
+
+        logits, features = action_classifier(input_source, input_target)
+        action_classifier.compute_loss(logits, source_label, features, loss_weight=args.models['RGB'].weight)
+        action_classifier.backward(retain_graph=False)
+        action_classifier.compute_accuracy(logits, source_label)
 
         # update weights and zero gradients if total_batch samples are passed
         if gradient_accumulation_step:
@@ -208,18 +237,25 @@ def validate(model, val_loader, device, it, num_classes):
                 logits[m] = torch.zeros((args.test.num_clips, batch, num_classes)).to(device)
 
             clip = {}
-            for i_c in range(args.test.num_clips):
+            '''for i_c in range(args.test.num_clips):
                 for m in modalities:
                     clip[m] = data[m][:, i_c].to(device)
 
                 output, _ = model(clip)
                 for m in modalities:
-                    logits[m][i_c] = output[m]
+                    logits[m][i_c] = output[m]'''
+            for m in modalities:  # commento by suzie: args.TEST.num_clips (?)
+                clip[m] = data[m].to(device)
 
-            for m in modalities:
-                logits[m] = torch.mean(logits[m], dim=0)
+            output, _ = model(clip)
+            # for m in modalities:
+            #     logits[m] = output[m]
 
-            model.compute_accuracy(logits, label)
+            # for m in modalities:
+            #     logits[m] = torch.mean(logits[m], dim=0)
+
+            # model.compute_accuracy(logits, label)
+            model.compute_accuracy(output, label)
 
             if (i_val + 1) % (len(val_loader) // 5) == 0:
                 logger.info("[{}/{}] top1= {:.3f}% top5 = {:.3f}%".format(i_val + 1, len(val_loader),
