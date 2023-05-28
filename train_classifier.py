@@ -147,9 +147,6 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
         except StopIteration:
             data_loader_source = iter(source_loader)
             source_data, source_label = next(data_loader_source)
-        end_t = datetime.now()
-
-        # aggiunta nostra: iteratore aggiuntivo sui target
 
         try:
             target_data, target_label = next(data_loader_target)
@@ -166,22 +163,13 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
         input_source = {}
         input_target = {}
 
-        '''for clip in range(args.train.num_clips):
-            # in case of multi-clip training one clip per time is processed
-            for m in modalities:
-                data[m] = source_data[m][:, clip].to(device)
-
-            logits, _ = action_classifier.forward(data)
-            action_classifier.compute_loss(logits, source_label, loss_weight=1)
-            action_classifier.backward(retain_graph=False)
-            action_classifier.compute_accuracy(logits, source_label)'''
-
-        for m in modalities:  # commento by suzie: args.train.num_clips (?)
+        # to device
+        for m in modalities:
             input_source[m] = source_data[m].to(device)
             input_target[m] = target_data[m].to(device)
 
-        logits, features = action_classifier(input_source, input_target)
-        action_classifier.compute_loss(logits, source_label, features, loss_weight=args.models['RGB'].weight)
+        logits, pred_domain_source, _, pred_domain_target = action_classifier(input_source, input_target)
+        action_classifier.compute_loss(logits, source_label, pred_domain_source, pred_domain_target, loss_weight=args.models['RGB'].weight)
         action_classifier.backward(retain_graph=False)
         action_classifier.compute_accuracy(logits, source_label)
 

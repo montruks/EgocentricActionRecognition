@@ -74,18 +74,26 @@ class ActionRecognition(tasks.Task, ABC):
         Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]
             output logits and features
         """
-        logits = {}
-        features = {}
-        for i_m, m in enumerate(self.modalities):
-            # logits[m], feat = self.task_models[m](x = data[m], **kwargs)
-            logits[m], feat = self.task_models[m](input_source[m], input_target[m], **kwargs)
-            if i_m == 0:
-                for k in feat.keys():
-                    features[k] = {}
-            for k in feat.keys():
-                features[k][m] = feat[k]
+        pred_fc_video_source = {}
+        pred_fc_video_target = {}
+        pred_domain_source = {}
+        pred_domain_target = {}
 
-        return logits, features
+        for i_m, m in enumerate(self.modalities):
+            pred_fc_video_source[m], pred_domain_all_source, pred_fc_video_target[m], pred_domain_all_target = self.task_models[m](input_source[m], input_target[m], **kwargs)
+
+            if i_m == 0:
+                for k in pred_domain_all_source.keys():
+                    pred_domain_source[k] = {}
+                for k in pred_domain_all_target.keys():
+                    pred_domain_target[k] = {}
+
+            for k in pred_domain_all_source.keys():
+                pred_domain_source[k][m] = pred_domain_all_source[k]
+            for k in pred_domain_all_target.keys():
+                pred_domain_target[k][m] = pred_domain_all_target[k]
+
+        return pred_fc_video_source, pred_domain_source, pred_fc_video_target, pred_domain_target
 
     #  compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, loss_weight: float=1.0):
     def compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, features, loss_weight):
