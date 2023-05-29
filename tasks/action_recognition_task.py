@@ -172,7 +172,7 @@ class ActionRecognition(tasks.Task, ABC):
 
         # Update the loss value, weighting it by the ratio of the batch size to the total
         # batch size (for gradient accumulation)
-        self.loss.update(loss, self.batch_size)
+        self.loss.update(loss / (self.total_batch / self.batch_size), self.batch_size)
 
     def compute_accuracy(self, logits: Dict[str, torch.Tensor], label: torch.Tensor):
         """Fuse the logits from different modalities and compute the classification accuracy.
