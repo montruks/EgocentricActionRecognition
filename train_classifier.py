@@ -216,37 +216,19 @@ def validate(model, val_loader, device, it, num_classes):
 
     model.reset_acc()
     model.train(False)
-    logits = {}
 
     # Iterate over the models
     with torch.no_grad():
         for i_val, (data, label) in enumerate(val_loader):
             label = label.to(device)
 
-            for m in modalities:
-                batch = data[m].shape[0]
-                logits[m] = torch.zeros((args.test.num_clips, batch, num_classes)).to(device)
-
             clip = {}
-            '''for i_c in range(args.test.num_clips):
-                for m in modalities:
-                    clip[m] = data[m][:, i_c].to(device)
-
-                output, _ = model(clip)
-                for m in modalities:
-                    logits[m][i_c] = output[m]'''
-            for m in modalities:  # commento by suzie: args.TEST.num_clips (?)
+            for m in modalities:
                 clip[m] = data[m].to(device)
 
-            output, _ = model(clip)
-            # for m in modalities:
-            #     logits[m] = output[m]
+            logits, _, _, _ = model(clip)
 
-            # for m in modalities:
-            #     logits[m] = torch.mean(logits[m], dim=0)
-
-            # model.compute_accuracy(logits, label)
-            model.compute_accuracy(output, label)
+            model.compute_accuracy(logits, label)
 
             if (i_val + 1) % (len(val_loader) // 5) == 0:
                 logger.info("[{}/{}] top1= {:.3f}% top5 = {:.3f}%".format(i_val + 1, len(val_loader),
