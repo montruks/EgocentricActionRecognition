@@ -44,12 +44,11 @@ models:
   RGB:
     model: ClassifierGSD
     frame_aggregation: 'trn' #'avgpool'
-    attn: True
     weight:
-      'GSD': 1
-      'GVD': 1
-      'GRD': 1
-      'Attn': 1
+      GSD: 0
+      GVD: 0
+      GRD: 0
+      Attn: 0
     normalize: False
     kwargs: {}
     lr_steps: 3000
