@@ -173,9 +173,6 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
 
         logits_source, pred_domain_source, logits_target, pred_domain_target = action_classifier(input_source, input_target)
         classification_loss, adversarial_loss, attn_loss = action_classifier.compute_loss(logits_source, source_label, pred_domain_source, logits_target,pred_domain_target)
-        logger.info("classification_loss:\t%.4f, GSD:\t%.4f, GVD:\t%.4f, GRD:\t%.4f, Attn:\t%.4f," %
-                    (classification_loss, adversarial_loss['GSD'], adversarial_loss['GVD'],
-                     adversarial_loss.get('GRD', 0), attn_loss))
 
         action_classifier.backward(retain_graph=False)
         action_classifier.compute_accuracy(logits_source, source_label)
@@ -185,6 +182,10 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
             logger.info("[%d/%d]\tlast Verb loss: %.4f\tMean verb loss: %.4f\tAcc@1: %.2f%%\tAccMean@1: %.2f%%" %
                         (real_iter, args.train.num_iter, action_classifier.loss.val, action_classifier.loss.avg,
                          action_classifier.accuracy.val[1], action_classifier.accuracy.avg[1]))
+
+            logger.info("classification_loss:\t%.4f, GSD:\t%.4f, GVD:\t%.4f, GRD:\t%.4f, Attn:\t%.4f," %
+                        (classification_loss, adversarial_loss['GSD'], adversarial_loss['GVD'],
+                         adversarial_loss.get('GRD', 0), attn_loss))
 
             action_classifier.check_grad()
             action_classifier.step()
