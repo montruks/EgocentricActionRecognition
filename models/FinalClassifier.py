@@ -140,20 +140,23 @@ class Classifier(nn.Module):
             normal_(self.fc_classifier_video_target.weight, 0, std)
             constant_(self.fc_classifier_video_target.bias, 0)
 
-
-    def get_attn_feat_relation(self, feat_fc, pred_domain, num_segments):
+    def get_trans_attn(self, pred_domain):
         softmax = nn.Softmax(dim=1)
         logsoftmax = nn.LogSoftmax(dim=1)
         entropy = torch.sum(-softmax(pred_domain) * logsoftmax(pred_domain), 1)
         weights = 1 - entropy
 
-        weights = weights.view(-1, num_segments - 1, 1).repeat(1, 1, feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 4 x 256)
-        feat_fc_attn = (weights + 1) * feat_fc
+        return weights
 
-        return feat_fc_attn, weights[:, :, 0]
+    def get_attn_feat_relation(self, feat_fc, pred_domain, num_segments):
+        weights_attn = self.get_trans_attn(pred_domain)
+        weights_attn = weights_attn.view(-1, num_segments - 1, 1).repeat(1, 1, feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 4 x 256)
+        feat_fc_attn = (weights_attn + 1) * feat_fc
+
+        return feat_fc_attn, weights_attn[:, :, 0]
 
     # Gsd
-    def domain_classifier_frame(self, feat, beta):  # beta?
+    def domain_classifier_frame(self, feat, beta):
         feat_fc_domain_frame = GradReverse.apply(feat, beta[2])
         feat_fc_domain_frame = self.fc_feature_domain(feat_fc_domain_frame)
         feat_fc_domain_frame = self.relu(feat_fc_domain_frame)
@@ -194,10 +197,9 @@ class Classifier(nn.Module):
     # AvgPoool
     def aggregate_frames(self, feat_fc, num_segments, pred_domain):
         feat_fc_video = feat_fc.view((-1, 1, num_segments) + feat_fc.size()[-1:])  # reshape based on the segments (e.g. 16 x 1 x 5 x 512)
-        if self.use_attn == 'TransAttn':  # get the attention weighting
+        if self.use_attn:  # get the attention weighting
             weights_attn = self.get_trans_attn(pred_domain)
-            weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[
-                -1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
+            weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
             feat_fc_video = (weights_attn + 1) * feat_fc_video
 
         feat_fc_video = nn.AvgPool2d([num_segments, 1])(feat_fc_video)  # e.g. 16 x 1 x 1 x 512
@@ -281,10 +283,6 @@ class Classifier(nn.Module):
             if self.use_attn:  # get the attention weighting
                 feat_fc_video_relation_source, _ = self.get_attn_feat_relation(feat_fc_video_relation_source, pred_fc_domain_video_relation_source, self.num_segments)
                 feat_fc_video_relation_target, _ = self.get_attn_feat_relation(feat_fc_video_relation_target, pred_fc_domain_video_relation_target, self.num_segments)
-            # attn_relation_source, attn_relation_target
-            ''' else:
-            attn_relation_source = feat_fc_video_relation_source[:, :, 0]  # assign random tensors to attention values to avoid runtime error
-            attn_relation_target = feat_fc_video_relation_target[:, :, 0]  # assign random tensors to attention values to avoid runtime error'''
 
             # sum up relation features (ignore 1-relation)
             feat_fc_video_source = torch.sum(feat_fc_video_relation_source, 1)
@@ -304,8 +302,8 @@ class Classifier(nn.Module):
         pred_fc_domain_video_source = self.domain_classifier_video(feat_fc_video_source, self.beta)
         pred_fc_domain_video_target = self.domain_classifier_video(feat_fc_video_target, self.beta)
 
-        pred_domain_all_source['GRD'] = pred_fc_domain_video_source.view((batch_source,) + pred_fc_domain_video_source.size()[-1:])
-        pred_domain_all_target['GRD'] = pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:])
+        pred_domain_all_source['GVD'] = pred_fc_domain_video_source.view((batch_source,) + pred_fc_domain_video_source.size()[-1:])
+        pred_domain_all_target['GVD'] = pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:])
 
         # === final output ===#
         if not self.before_softmax:
@@ -321,3 +319,6 @@ class Classifier(nn.Module):
             output_target_2 = self.final_output(pred_fc_target, pred_fc_video_target_2, num_segments)'''
 
         return pred_fc_video_source, pred_domain_all_source, pred_fc_video_target, pred_domain_all_target
+        # Ly: pred_fc_video_source
+        # Lsd, Lrd, Lvd: pred_domain_all_source, pred_domain_all_target
+        # Lae: pred_fc_video_source, pred_domain_all_source, pred_fc_video_target, pred_domain_all_target

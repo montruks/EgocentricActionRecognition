@@ -149,10 +149,10 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
             source_data, source_label = next(data_loader_source)
 
         try:
-            target_data, target_label = next(data_loader_target)
+            target_data, _ = next(data_loader_target)
         except StopIteration:
             data_loader_target = iter(target_loader)
-            target_data, target_label = next(data_loader_target)
+            target_data, _ = next(data_loader_target)
         end_t = datetime.now()
 
         logger.info(f"Iteration {i}/{training_iterations} batch retrieved! Elapsed time = "
@@ -168,10 +168,10 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
             input_source[m] = source_data[m].to(device)
             input_target[m] = target_data[m].to(device)
 
-        logits, pred_domain_source, _, pred_domain_target = action_classifier(input_source, input_target)
-        action_classifier.compute_loss(logits, source_label, pred_domain_source, pred_domain_target, loss_weight=args.models['RGB'].weight)
+        logits_source, pred_domain_source, logits_target, pred_domain_target = action_classifier(input_source, input_target)
+        action_classifier.compute_loss(logits_source, source_label, pred_domain_source, logits_target,pred_domain_target)
         action_classifier.backward(retain_graph=False)
-        action_classifier.compute_accuracy(logits, source_label)
+        action_classifier.compute_accuracy(logits_source, source_label)
 
         # update weights and zero gradients if total_batch samples are passed
         if gradient_accumulation_step:

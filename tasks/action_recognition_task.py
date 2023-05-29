@@ -1,5 +1,6 @@
 from abc import ABC
 import torch
+from torch import nn
 from utils import utils
 from functools import reduce
 import wandb
@@ -58,10 +59,7 @@ class ActionRecognition(tasks.Task, ABC):
                                                 weight_decay=model_args[m].weight_decay,
                                                 momentum=model_args[m].sgd_momentum)
 
-    def forward(self, input_source: Dict[str, torch.Tensor], input_target: Dict[str, torch.Tensor] = None, **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        # def forward(self, x: Dict[str, torch.Tensor], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        if input_target is None:
-            input_target = input_source
+    def forward(self, input_source: Dict[str, torch.Tensor], input_target: Dict[str, torch.Tensor] = None, **kwargs):
         """Forward step of the task
 
         Parameters
@@ -74,6 +72,9 @@ class ActionRecognition(tasks.Task, ABC):
         Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]
             output logits and features
         """
+        if input_target is None:
+            input_target = input_source
+
         pred_fc_video_source = {}
         pred_fc_video_target = {}
         pred_domain_source = {}
@@ -95,8 +96,15 @@ class ActionRecognition(tasks.Task, ABC):
 
         return pred_fc_video_source, pred_domain_source, pred_fc_video_target, pred_domain_target
 
+    def get_entropy_attn(self, feat):
+        softmax = nn.Softmax(dim=1)
+        logsoftmax = nn.LogSoftmax(dim=1)
+        entropy = torch.sum(-softmax(feat) * logsoftmax(feat), 1)
+
+        return entropy
+
     #  compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, loss_weight: float=1.0):
-    def compute_loss(self, logits: Dict[str, torch.Tensor], label: torch.Tensor, features, loss_weight):
+    def compute_loss(self, logits_source, source_label, pred_domain_source, logits_target, pred_domain_target):
         """Fuse the logits from different modalities and compute the classification loss.
 
         Parameters
@@ -108,29 +116,63 @@ class ActionRecognition(tasks.Task, ABC):
         loss_weight : float, optional
             weight of the classification loss, by default 1.0
         """
-        loss = 0
-        for l in range(len(features['source']['RGB'])):
-            pred_domain_source_single = features['source']['RGB'][l].view(-1, features['source']['RGB'][l].size()[-1])
-            pred_domain_target_single = features['target']['RGB'][l].view(-1, features['target']['RGB'][l].size()[-1])
+        modality = 'RGB'
+        adversarial_loss = {}
 
-            source_domain_label = torch.zeros(pred_domain_source_single.size(0)).long()
-            target_domain_label = torch.ones(pred_domain_target_single.size(0)).long()
+        loss = 0  # loss totale
+
+        # Loss su Grd, Gvd, Gsd
+        for k in pred_domain_source.keys():
+            if k == 'GVD':
+                pred_domain_source[k][modality] = pred_domain_source[k][modality][:, None, :]
+                pred_domain_target[k][modality] = pred_domain_target[k][modality][:, None, :]
+            # 32x2 -> 32x1x2
+
+            pred_domain_source_single = torch.permute(pred_domain_source[k][modality], (0, 2, 1))
+            pred_domain_target_single = torch.permute(pred_domain_target[k][modality], (0, 2, 1))
+            # 32x5x2 -> 32x2x5
+
+            source_domain_label = torch.zeros(pred_domain_source_single.size(0), pred_domain_source_single.size(2)).long()
+            target_domain_label = torch.ones(pred_domain_target_single.size(0), pred_domain_target_single.size(2)).long()
+            # 32x5
+
             domain_label = torch.cat((source_domain_label, target_domain_label), 0)
+            # 64x5
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             domain_label = domain_label.to(device)
 
             pred_domain = torch.cat((pred_domain_source_single, pred_domain_target_single), 0)
+            # 64x2x5
+            if k == 'GVD':
+                pred_domain_attn = torch.squeeze(pred_domain)
 
-            adversarial_loss = self.criterion(pred_domain, domain_label) / pred_domain_source_single.size(0) * self.batch_size
-            loss += torch.mean(loss_weight[l] * adversarial_loss)
+            adversarial_loss_single = self.criterion(pred_domain, domain_label)  # 64x5
+            adversarial_loss_single = torch.mean(adversarial_loss_single, dim=1)  # 64
+            adversarial_loss[k] = torch.mean(adversarial_loss_single) * self.model_args[modality].weight[k]
+            loss -= adversarial_loss[k]
 
-        fused_logits = reduce(lambda x, y: x + y, logits.values())  # somma sulle modalità
-        classification_loss = torch.mean(loss_weight[-1] * self.criterion(fused_logits, label))
+        # Loss y (classi)
+        fused_logits_source = reduce(lambda x, y: x + y, logits_source.values())  # somma sulle modalità
+        classification_loss = torch.mean(self.criterion(fused_logits_source, source_label))
         loss += classification_loss
+
+        # Loss attn
+        fused_logits_target = reduce(lambda x, y: x + y, logits_target.values())  # somma sulle modalità
+        fused_logits = torch.cat((fused_logits_source, fused_logits_target), 0)
+        # 64x8
+
+        Hy = self.get_entropy_attn(fused_logits)
+        Hd = self.get_entropy_attn(pred_domain_attn)
+        # 64
+
+        attn_loss_single = (1 + Hd) * Hy
+        attn_loss = torch.mean(attn_loss_single) * self.model_args[modality].weight['Attn']
+        loss += attn_loss
+
         # Update the loss value, weighting it by the ratio of the batch size to the total
         # batch size (for gradient accumulation)
-        self.loss.update(loss / (self.total_batch / self.batch_size), self.batch_size)
+        self.loss.update(loss, self.batch_size)
 
     def compute_accuracy(self, logits: Dict[str, torch.Tensor], label: torch.Tensor):
         """Fuse the logits from different modalities and compute the classification accuracy.
