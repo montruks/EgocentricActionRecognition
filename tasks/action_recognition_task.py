@@ -123,34 +123,25 @@ class ActionRecognition(tasks.Task, ABC):
 
         # Loss su Grd, Gvd, Gsd
         for k in pred_domain_source.keys():
-            if k == 'GVD':
-                pred_domain_source[k][modality] = pred_domain_source[k][modality][:, None, :]
-                pred_domain_target[k][modality] = pred_domain_target[k][modality][:, None, :]
-            # 32x2 -> 32x1x2
 
-            pred_domain_source_single = torch.permute(pred_domain_source[k][modality], (0, 2, 1))
-            pred_domain_target_single = torch.permute(pred_domain_target[k][modality], (0, 2, 1))
-            # 32x5x2 -> 32x2x5
+            pred_domain_source_single = pred_domain_source[k][modality].view(-1, pred_domain_source[k][modality][-1])
+            pred_domain_target_single = pred_domain_target[k][modality].view(-1, pred_domain_target[k][modality][-1])
+            # 32x5x2 -> 160x2
 
-            source_domain_label = torch.zeros(pred_domain_source_single.size(0), pred_domain_source_single.size(2)).long()
-            target_domain_label = torch.ones(pred_domain_target_single.size(0), pred_domain_target_single.size(2)).long()
-            # 32x5
+            source_domain_label = torch.zeros(pred_domain_source_single.size(0)).long()
+            target_domain_label = torch.ones(pred_domain_target_single.size(0)).long()
 
             domain_label = torch.cat((source_domain_label, target_domain_label), 0)
-            # 64x5
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             domain_label = domain_label.to(device)
 
             pred_domain = torch.cat((pred_domain_source_single, pred_domain_target_single), 0)
-            # 64x2x5
-            if k == 'GVD':
-                pred_domain_attn = torch.squeeze(pred_domain)
 
-            adversarial_loss_single = self.criterion(pred_domain, domain_label)  # 64x5
-            adversarial_loss_single = torch.mean(adversarial_loss_single, dim=1)  # 64
+            adversarial_loss_single = self.criterion(pred_domain, domain_label)
+            adversarial_loss_single = torch.mean(adversarial_loss_single, dim=1)
             adversarial_loss[k] = torch.mean(adversarial_loss_single) * self.model_args[modality].weight[k]
-            loss -= adversarial_loss[k]
+            loss += adversarial_loss[k]
 
         # Loss y (classi)
         fused_logits_source = reduce(lambda x, y: x + y, logits_source.values())  # somma sulle modalità
@@ -161,6 +152,11 @@ class ActionRecognition(tasks.Task, ABC):
         fused_logits_target = reduce(lambda x, y: x + y, logits_target.values())  # somma sulle modalità
         fused_logits = torch.cat((fused_logits_source, fused_logits_target), 0)
         # 64x8
+
+        pred_domain_source_gvd = pred_domain_source['GVD'][modality].view(-1, pred_domain_source[k][modality][-1])
+        pred_domain_target_gvd = pred_domain_target['GVD'][modality].view(-1, pred_domain_target[k][modality][-1])
+
+        pred_domain_attn = torch.cat((pred_domain_source_gvd, pred_domain_target_gvd), 0)
 
         Hy = self.get_entropy_attn(fused_logits)
         Hd = self.get_entropy_attn(pred_domain_attn)

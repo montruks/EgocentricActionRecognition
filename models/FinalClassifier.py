@@ -2,7 +2,6 @@ from torch import nn
 from torch.nn.init import *
 from torch.autograd import Function
 from models.TRNmodule import RelationModuleMultiScale
-import torch.nn.functional as F
 
 
 # definition of Gradient Reversal Layer
