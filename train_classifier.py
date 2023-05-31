@@ -183,9 +183,9 @@ def train(action_classifier, source_loader, target_loader, val_loader, device, n
                         (real_iter, args.train.num_iter, action_classifier.loss.val, action_classifier.loss.avg,
                          action_classifier.accuracy.val[1], action_classifier.accuracy.avg[1]))
 
-            logger.info("classification_loss:\t%.4f, GSD:\t%.4f, GVD:\t%.4f, GRD:\t%.4f, Attn:\t%.4f," %
+            '''logger.info("classification_loss:\t%.4f, GSD:\t%.4f, GVD:\t%.4f, GRD:\t%.4f, Attn:\t%.4f," %
                         (classification_loss, adversarial_loss['GSD'], adversarial_loss['GVD'],
-                         adversarial_loss.get('GRD', 0), attn_loss))
+                         adversarial_loss.get('GRD', 0), attn_loss))'''
 
             action_classifier.check_grad()
             action_classifier.step()
