@@ -124,8 +124,8 @@ class ActionRecognition(tasks.Task, ABC):
         # Loss su Grd, Gvd, Gsd
         for k in pred_domain_source.keys():
 
-            pred_domain_source_single = pred_domain_source[k][modality].view(-1, pred_domain_source[k][modality][-1])
-            pred_domain_target_single = pred_domain_target[k][modality].view(-1, pred_domain_target[k][modality][-1])
+            pred_domain_source_single = pred_domain_source[k][modality].view(-1, pred_domain_source[k][modality].size(-1))
+            pred_domain_target_single = pred_domain_target[k][modality].view(-1, pred_domain_target[k][modality].size(-1))
             # 32x5x2 -> 160x2
 
             source_domain_label = torch.zeros(pred_domain_source_single.size(0)).long()
@@ -139,7 +139,6 @@ class ActionRecognition(tasks.Task, ABC):
             pred_domain = torch.cat((pred_domain_source_single, pred_domain_target_single), 0)
 
             adversarial_loss_single = self.criterion(pred_domain, domain_label)
-            adversarial_loss_single = torch.mean(adversarial_loss_single, dim=1)
             adversarial_loss[k] = torch.mean(adversarial_loss_single) * self.model_args[modality].weight[k]
             loss += adversarial_loss[k]
 
@@ -153,8 +152,8 @@ class ActionRecognition(tasks.Task, ABC):
         fused_logits = torch.cat((fused_logits_source, fused_logits_target), 0)
         # 64x8
 
-        pred_domain_source_gvd = pred_domain_source['GVD'][modality].view(-1, pred_domain_source[k][modality][-1])
-        pred_domain_target_gvd = pred_domain_target['GVD'][modality].view(-1, pred_domain_target[k][modality][-1])
+        pred_domain_source_gvd = pred_domain_source['GVD'][modality].view(-1, pred_domain_source[k][modality].size(-1))
+        pred_domain_target_gvd = pred_domain_target['GVD'][modality].view(-1, pred_domain_target[k][modality].size(-1))
 
         pred_domain_attn = torch.cat((pred_domain_source_gvd, pred_domain_target_gvd), 0)
 
