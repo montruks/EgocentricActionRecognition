@@ -201,7 +201,7 @@ class ActionRecognition(tasks.Task, ABC):
         """Perform a learning rate step."""
         for m in self.modalities:
             prev_lr = self.optimizer[m].param_groups[-1]["lr"]
-            new_lr = self.optimizer[m].param_groups[-1]["lr"] / 10
+            new_lr = self.optimizer[m].param_groups[-1]["lr"] * self.model_args[m].reduce_factor
             self.optimizer[m].param_groups[-1]["lr"] = new_lr
 
             logger.info(f"Reducing learning rate modality {m}: {prev_lr} --> {new_lr}")
