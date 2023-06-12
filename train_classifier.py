@@ -57,7 +57,7 @@ def main():
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
         use_attn = False
-        if args.models[m].weight.Attn != 0:
+        if args.models.weight.Attn != 0:
             use_attn = True
         models[m] = getattr(model_list, args.models[m].model)(num_class=8,
                                                               frame_aggregation=args.models[m].frame_aggregation,

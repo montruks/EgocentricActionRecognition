@@ -56,9 +56,15 @@ class EpicKitchensDataset(data.Dataset, ABC):
             self.model_features = None
             for m in self.modalities:
                 # load features for each modality
-                model_features = pd.DataFrame(pd.read_pickle(os.path.join("saved_features",
+                if m == 'RGB':
+                    model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
                                                                           self.dataset_conf[m].features_name + "_" +
                                                                           pickle_name))['features'])[["uid", "features_" + m]]
+                else:
+                    model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
+                                                                          self.dataset_conf[m].features_name + "_" +
+                                                                          pickle_name)))
+
                 if self.model_features is None:
                     self.model_features = model_features
                 else:
