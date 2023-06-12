@@ -36,13 +36,15 @@ dataset:
     data_path: ??? # path to RGB data
     tmpl: "img_{:010d}.jpg" # format of RGB filenames
     features_name: saved_feat_I3D
-  Event: # not neeeded for the project
-    rgb4e: 6
+    path: "saved_features"
+  Audio:
+    path: "audio_feat"
+    features_name: saved_feat_I3D
 
 # these are the action recognition models for each modality
 models:
   RGB:
-    model: ClassifierGSD
+    model: Classifier
     frame_aggregation: 'trn' #'avgpool'
     weight:
       GSD: 0
@@ -51,7 +53,19 @@ models:
       Attn: 0
     normalize: False
     kwargs: {}
-    lr_steps: 3000
+    lr: 0.01
+    sgd_momentum: 0.9
+    weight_decay: 1e-7
+  Audio:
+    model: Classifier
+    frame_aggregation: 'trn' #'avgpool'
+    weight:
+      GSD: 0
+      GVD: 0
+      GRD: 0
+      Attn: 0
+    normalize: False
+    kwargs: {}
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
