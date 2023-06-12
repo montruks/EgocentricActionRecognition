@@ -33,7 +33,6 @@ dataset:
   stride: 2 # stride in case of dense sampling
   resolution: 224 # input resolution to the model
   RGB:
-    data_path: ??? # path to RGB data
     tmpl: "img_{:010d}.jpg" # format of RGB filenames
     features_name: saved_feat_I3D
     path: "saved_features"
