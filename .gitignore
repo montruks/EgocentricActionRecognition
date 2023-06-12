@@ -12,6 +12,8 @@ saved_models
 saved_features
 audio_feat
 audio_features
+ek_i3d
+optflow_features
 Experiment_logs
 TEST_RESULTS
 

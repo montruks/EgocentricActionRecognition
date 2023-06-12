@@ -52,15 +52,16 @@ def main():
     # these dictionaries are for more multi-modal training/testing, each key is a modality used
     models = {}
     logger.info("Instantiating models per modality")
+
+    use_attn = False
+    if args.models.weight.Attn != 0:
+        use_attn = True
     for m in modalities:
-        logger.info('{} Net\tModality: {}'.format(args.models[m].model, m))
+        logger.info('{} Net\tModality: {}'.format(args.models.model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
-        use_attn = False
-        if args.models.weight.Attn != 0:
-            use_attn = True
-        models[m] = getattr(model_list, args.models[m].model)(num_class=8,
-                                                              frame_aggregation=args.models[m].frame_aggregation,
+        models[m] = getattr(model_list, args.models.model)(num_class=8,
+                                                              frame_aggregation=args.models.frame_aggregation,
                                                               use_attn=use_attn)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
