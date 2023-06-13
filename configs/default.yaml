@@ -34,8 +34,8 @@ dataset:
   resolution: 224 # input resolution to the model
   RGB:
     tmpl: "img_{:010d}.jpg" # format of RGB filenames
+    path: "rgb_features"
     features_name: saved_feat_I3D
-    path: "saved_features"
   Audio:
     path: "audio_features"
     features_name: audio_feat

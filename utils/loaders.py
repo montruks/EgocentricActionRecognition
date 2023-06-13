@@ -8,9 +8,8 @@ from PIL import Image
 import os
 import os.path
 from utils.logger import logger
+import torch
 
-def concat_features(row):
-    return row[0] + row[1]
 
 class EpicKitchensDataset(data.Dataset, ABC):
     def __init__(self, split, modalities, mode, dataset_conf, num_frames_per_clip, num_clips, dense_sampling,
@@ -62,12 +61,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
                 lst = ["RGB", "Audio", "OptFlow"]
             for m in lst:
                 # load features for each modality
-                if m == 'RGB':
-                    model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
-                                                                          self.dataset_conf[m].features_name + "_" +
-                                                                          pickle_name))['features'])[["uid", "features_" + m]]
-                else:
-                    model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
+                model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
                                                                           self.dataset_conf[m].features_name + "_" +
                                                                           pickle_name)))
 
@@ -75,9 +69,10 @@ class EpicKitchensDataset(data.Dataset, ABC):
                     self.model_features = model_features
                 else:
                     self.model_features = pd.merge(self.model_features, model_features, how="inner", on="uid")
-                    if self.modalities[0] == 'all_feat':
-                        # features concatenation
-                        self.model_features['features_all_feat'] = self.model_features.apply(concat_features, axis=1)
+
+            if self.modalities[0] == 'all_feat':
+                # features concatenation
+                self.model_features['features_all_feat'] = self.model_features.apply(lambda row: torch.cat((row['features_RGB'], row['features_Audio'], row['features_OptFlow']), dim=1), axis=1)
 
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
 
