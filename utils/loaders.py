@@ -57,7 +57,10 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         if self.load_feat:
             self.model_features = None
-            for m in self.modalities:
+            lst = self.modalities
+            if self.modalities[0] == 'all_feat':
+                lst = ["RGB", "Audio", "OptFlow"]
+            for m in lst:
                 # load features for each modality
                 if m == 'RGB':
                     model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
@@ -72,14 +75,11 @@ class EpicKitchensDataset(data.Dataset, ABC):
                     self.model_features = model_features
                 else:
                     self.model_features = pd.merge(self.model_features, model_features, how="inner", on="uid")
-
-                    # features concatenation
-                    self.model_features['all_feat'] = self.model_features.apply(concat_features, axis=1)
+                    if self.modalities[0] == 'all_feat':
+                        # features concatenation
+                        self.model_features['features_all_feat'] = self.model_features.apply(concat_features, axis=1)
 
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
-
-            # features concatenation
-            self.modalities = 'all_feat'
 
     def _get_train_indices(self, record, modality='RGB'):
         ##################################################################
