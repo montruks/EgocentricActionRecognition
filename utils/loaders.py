@@ -9,6 +9,9 @@ import os
 import os.path
 from utils.logger import logger
 
+def concat_features(row):
+    return row[0] + row[1]
+
 class EpicKitchensDataset(data.Dataset, ABC):
     def __init__(self, split, modalities, mode, dataset_conf, num_frames_per_clip, num_clips, dense_sampling,
                  transform=None, load_feat=False, additional_info=False, **kwargs):
@@ -70,7 +73,13 @@ class EpicKitchensDataset(data.Dataset, ABC):
                 else:
                     self.model_features = pd.merge(self.model_features, model_features, how="inner", on="uid")
 
+                    # features concatenation
+                    self.model_features['all_feat'] = self.model_features.apply(concat_features, axis=1)
+
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
+
+            # features concatenation
+            self.modalities = 'all_feat'
 
     def _get_train_indices(self, record, modality='RGB'):
         ##################################################################
