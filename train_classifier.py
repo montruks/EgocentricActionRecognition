@@ -56,13 +56,19 @@ def main():
     use_attn = False
     if args.models.weight.Attn != 0:
         use_attn = True
+
+    feature_dim = 1024
+    if modalities[0] == 'all_feat':
+        feature_dim = 3072
+    
     for m in modalities:
         logger.info('{} Net\tModality: {}'.format(args.models.model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
         models[m] = getattr(model_list, args.models.model)(num_class=8,
-                                                              frame_aggregation=args.models.frame_aggregation,
-                                                              use_attn=use_attn)
+                                                           frame_aggregation=args.models.frame_aggregation,
+                                                           use_attn=use_attn,
+                                                           feature_dim=feature_dim)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
