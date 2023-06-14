@@ -52,31 +52,28 @@ models:
     GVD: 0
     GRD: 0
     Attn: 0
+  reduce_factor: 0.1
   RGB:
     normalize: False
     kwargs: {}
-    reduce_factor: 0.1
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
   Audio:
     normalize: False
     kwargs: {}
-    reduce_factor: 0.1
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
   OptFlow:
     normalize: False
     kwargs: {}
-    reduce_factor: 0.1
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
   all_feat:
     normalize: False
     kwargs: {}
-    reduce_factor: 0.1
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
