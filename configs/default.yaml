@@ -1,6 +1,7 @@
 action: ??? # train or test
 name: ??? # name of the experiment needed for the logs
 modality: ["all_feat"] # modality used
+concat_feat: ["RGB","Audio","OptFlow"] # modality used
 total_batch: 128 # total batch size if training is done with gradient accumulation
 batch_size: 32 # batch size for the forward
 gpus: null # gpus adopted

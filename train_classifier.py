@@ -59,7 +59,7 @@ def main():
 
     feature_dim = 1024
     if modalities[0] == 'all_feat':
-        feature_dim = 3072
+        feature_dim = int(1024 * len(args.concat_feat))
     
     for m in modalities:
         logger.info('{} Net\tModality: {}'.format(args.models.model, m))
@@ -86,22 +86,23 @@ def main():
         training_iterations = args.train.num_iter * (args.total_batch // args.batch_size)
         # all dataloaders are generated here
         source_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
-                                                                       'train', args.dataset, None, None, None,
-                                                                       None, load_feat=True),
-                                                   batch_size=args.batch_size, shuffle=True,
-                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+                                                                        'train', args.dataset, None, None, None,
+                                                                        concat_feat=args.concat_feat, load_feat=True),
+                                                    batch_size=args.batch_size, shuffle=True,
+                                                    num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
 
         target_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
-                                                                       'train', args.dataset, None, None, None,
-                                                                       None, load_feat=True),
-                                                   batch_size=args.batch_size, shuffle=True,
-                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+                                                                        'train', args.dataset, None, None, None,
+                                                                        concat_feat=args.concat_feat, load_feat=True),
+                                                    batch_size=args.batch_size, shuffle=True,
+                                                    num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
 
         val_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
                                                                      'val', args.dataset, None, None, None,
-                                                                     None, load_feat=True),
+                                                                     concat_feat=args.concat_feat, load_feat=True),
                                                  batch_size=args.batch_size, shuffle=False,
                                                  num_workers=args.dataset.workers, pin_memory=True, drop_last=False)
+
         train(action_classifier, source_loader, target_loader, val_loader, device, num_classes)
 
     elif args.action == "validate":
