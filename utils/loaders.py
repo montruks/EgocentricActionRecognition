@@ -13,7 +13,7 @@ import torch
 
 class EpicKitchensDataset(data.Dataset, ABC):
     def __init__(self, split, modalities, mode, dataset_conf, num_frames_per_clip, num_clips, dense_sampling,
-                 transform=None, load_feat=False, additional_info=False, **kwargs):
+                 concat_feat=None, transform=None, load_feat=False, additional_info=False, **kwargs):
         """
         split: str (D1, D2 or D3)
         modalities: list(str, str, ...)
@@ -40,6 +40,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
         self.num_clips = num_clips
         self.stride = self.dataset_conf.stride
         self.additional_info = additional_info
+        self.concat_feat = concat_feat
 
         if self.mode == "train":
             pickle_name = split + "_train.pkl"
@@ -56,10 +57,10 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
         if self.load_feat:
             self.model_features = None
-            lst = self.modalities
+            lst_modality = self.modalities
             if self.modalities[0] == 'all_feat':
-                lst = ["RGB", "Audio", "OptFlow"]
-            for m in lst:
+                lst_modality = self.concat_feat
+            for m in lst_modality:
                 # load features for each modality
                 model_features = pd.DataFrame(pd.read_pickle(os.path.join(self.dataset_conf[m].path,
                                                                           self.dataset_conf[m].features_name + "_" +
@@ -72,7 +73,8 @@ class EpicKitchensDataset(data.Dataset, ABC):
 
             if self.modalities[0] == 'all_feat':
                 # features concatenation
-                self.model_features['features_all_feat'] = self.model_features.apply(lambda row: torch.cat((row['features_RGB'], row['features_Audio'], row['features_OptFlow']), dim=1), axis=1)
+                lst_modality = ['features_' + m for m in lst_modality]
+                self.model_features['features_all_feat'] = self.model_features[lst_modality].apply(lambda row: torch.cat(row.values.tolist(), dim=1), axis=1)
 
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
 
