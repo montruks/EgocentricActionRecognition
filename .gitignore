@@ -17,6 +17,9 @@ ek_i3d
 optflow_features
 Experiment_logs
 TEST_RESULTS
+train_classifierDani.py
+configs/defaultDani.yaml
+utils/argsDani.py
 
 # C extensions
 *.so
