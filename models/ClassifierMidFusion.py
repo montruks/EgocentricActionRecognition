@@ -2,6 +2,9 @@ from torch import nn
 from torch.nn.init import *
 from torch.autograd import Function
 from models.TRNmodule import RelationModuleMultiScale
+from models.FinalClassifier import Classifier
+from models.FeatureExtractor import FeatureExtractor
+from models.MidFusion import MidFusion
 
 
 # definition of Gradient Reversal Layer
@@ -17,12 +20,20 @@ class GradReverse(Function):
         return grad_input, None
 
 
-class ClassifierTBN(nn.Module):
-    def __init__(self, num_class, num_segments=5, feature_dim=3072, share_params='Y', add_fc=1,
-                 frame_aggregation='none', use_attn=False, beta=[1,1,1], dropout_i=0.5, dropout_v=0.5,
+class ClassifierMidFusion(nn.Module):
+    def __init__(self, num_class, modalities, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1,
+                 frame_aggregation='none', use_attn=False, beta=[1, 1, 1], dropout_i=0.5, dropout_v=0.5,
                  ens_DA=None):
 
         super().__init__()
+        self.modalities = modalities
+        self.featuresExtractors = {}
+        for m in modalities:
+            self.featuresExtractors[m] = FeatureExtractor(num_class=8,
+                                                          frame_aggregation=frame_aggregation,
+                                                          use_attn=use_attn,
+                                                          feature_dim=feature_dim)
+        self.midFusione = MidFusion()
         self.num_segments = num_segments
         self.feature_dim = feature_dim
         self.share_params = share_params
@@ -37,7 +48,6 @@ class ClassifierTBN(nn.Module):
         self.before_softmax = True
 
         self._prepare_DA(num_class)
-
 
     def _prepare_DA(self, num_class):  # convert the model to DA framework
 
@@ -149,7 +159,8 @@ class ClassifierTBN(nn.Module):
 
     def get_attn_feat_relation(self, feat_fc, pred_domain, num_segments):
         weights_attn = self.get_trans_attn(pred_domain)
-        weights_attn = weights_attn.view(-1, num_segments - 1, 1).repeat(1, 1, feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 4 x 256)
+        weights_attn = weights_attn.view(-1, num_segments - 1, 1).repeat(1, 1, feat_fc.size()[
+            -1])  # reshape & repeat weights (e.g. 16 x 4 x 256)
         feat_fc_attn = (weights_attn + 1) * feat_fc
 
         return feat_fc_attn, weights_attn[:, :, 0]
@@ -195,10 +206,12 @@ class ClassifierTBN(nn.Module):
 
     # AvgPoool
     def aggregate_frames(self, feat_fc, num_segments, pred_domain):
-        feat_fc_video = feat_fc.view((-1, 1, num_segments) + feat_fc.size()[-1:])  # reshape based on the segments (e.g. 16 x 1 x 5 x 512)
+        feat_fc_video = feat_fc.view(
+            (-1, 1, num_segments) + feat_fc.size()[-1:])  # reshape based on the segments (e.g. 16 x 1 x 5 x 512)
         if self.use_attn:  # get the attention weighting
             weights_attn = self.get_trans_attn(pred_domain)
-            weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[-1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
+            weights_attn = weights_attn.view(-1, 1, num_segments, 1).repeat(1, 1, 1, feat_fc.size()[
+                -1])  # reshape & repeat weights (e.g. 16 x 1 x 5 x 512)
             feat_fc_video = (weights_attn + 1) * feat_fc_video
 
         feat_fc_video = nn.AvgPool2d([num_segments, 1])(feat_fc_video)  # e.g. 16 x 1 x 1 x 512
@@ -207,99 +220,65 @@ class ClassifierTBN(nn.Module):
         return feat_fc_video
 
     def forward(self, input_source, input_target):
-        # batch_source, batch_target
-        batch_source = input_source.size()[0]
-        batch_target = input_target.size()[0]
+        features_modalities = {}
+        for m in self.modalities:
+            extracted_features = self.featuresExtractors[m](input_source, input_target)
+            features_modalities[m] = extracted_features
+        feat_fc_source, feat_fc_target, feat_fc_video_source, feat_fc_video_target = self.midFusion(features_modalities)
+
+        batch_source = feat_fc_source.size([0])
+        batch_target = feat_fc_target.size([0])
 
         # initailize dicts
         pred_domain_all_source = {}
         pred_domain_all_target = {}
 
-        # input_data is a list of tensors --> need to do pre-processing
-        feat_base_source = input_source.view(-1, input_source.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
-        feat_base_target = input_target.view(-1, input_target.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
-
-        # === MLP === with 1 lvl
-        feat_fc_source = self.fc_feature_shared_source(feat_base_source)
-        feat_fc_target = self.fc_feature_shared_target(feat_base_target) if self.share_params == 'N' else self.fc_feature_shared_source(feat_base_target)
-
-        feat_fc_source = self.relu(feat_fc_source)
-        feat_fc_target = self.relu(feat_fc_target)
-
-        feat_fc_source = self.dropout_i(feat_fc_source)
-        feat_fc_target = self.dropout_i(feat_fc_target)
-
-        if self.add_fc > 1:
-            feat_fc_source = self.fc_feature_shared_2_source(feat_fc_source)
-            feat_fc_target = self.fc_feature_shared_2_target(feat_fc_target) if self.share_params == 'N' else self.fc_feature_shared_2_source(feat_fc_target)
-
-            feat_fc_source = self.relu(feat_fc_source)
-            feat_fc_target = self.relu(feat_fc_target)
-
-            feat_fc_source = self.dropout_i(feat_fc_source)
-            feat_fc_target = self.dropout_i(feat_fc_target)
-
-        if self.add_fc > 2:
-            feat_fc_source = self.fc_feature_shared_3_source(feat_fc_source)
-            feat_fc_target = self.fc_feature_shared_3_target(feat_fc_target) if self.share_params == 'N' else self.fc_feature_shared_3_source(feat_fc_target)
-
-            feat_fc_source = self.relu(feat_fc_source)
-            feat_fc_target = self.relu(feat_fc_target)
-
-            feat_fc_source = self.dropout_i(feat_fc_source)
-            feat_fc_target = self.dropout_i(feat_fc_target)
-
         # === adversarial branch (frame-level) (GSD) === #
         pred_fc_domain_frame_source = self.domain_classifier_frame(feat_fc_source, self.beta)
         pred_fc_domain_frame_target = self.domain_classifier_frame(feat_fc_target, self.beta)
 
-        pred_domain_all_source['GSD'] = pred_fc_domain_frame_source.view((batch_source, self.num_segments) + pred_fc_domain_frame_source.size()[-1:])
-        pred_domain_all_target['GSD'] = pred_fc_domain_frame_target.view((batch_target, self.num_segments) + pred_fc_domain_frame_target.size()[-1:])
+        pred_domain_all_source['GSD'] = pred_fc_domain_frame_source.view(
+            (batch_source, self.num_segments) + pred_fc_domain_frame_source.size()[-1:])
+        pred_domain_all_target['GSD'] = pred_fc_domain_frame_target.view(
+            (batch_target, self.num_segments) + pred_fc_domain_frame_target.size()[-1:])
 
-        ### aggregate the frame-based features to video-based features ###
-        if self.frame_aggregation == 'avgpool':
-            feat_fc_video_source = self.aggregate_frames(feat_fc_source, self.num_segments, pred_fc_domain_frame_source)
-            feat_fc_video_target = self.aggregate_frames(feat_fc_target, self.num_segments, pred_fc_domain_frame_target)
-
-        elif self.frame_aggregation == 'trn':
-            feat_fc_video_source = feat_fc_source.view((-1, self.num_segments) + feat_fc_source.size()[-1:])
-            # reshape based on the segments (e.g. 640x512 --> 128x5x512)
-            feat_fc_video_target = feat_fc_target.view((-1, self.num_segments) + feat_fc_target.size()[-1:])
-            # reshape based on the segments (e.g. 640x512 --> 128x5x512)
-
-            feat_fc_video_relation_source = self.TRN(feat_fc_video_source)  # 128x5x512 --> 128x4x256 (256-dim. relation feature vectors x 5)
+        # GRD
+        if self.frame_aggregation == 'trn':
+            feat_fc_video_relation_source = self.TRN(
+                feat_fc_video_source)  # 128x5x512 --> 128x4x256 (256-dim. relation feature vectors x 5)
             feat_fc_video_relation_target = self.TRN(feat_fc_video_target)
-
             # adversarial branch GRD
-            pred_fc_domain_video_relation_source = self.domain_classifier_relation(feat_fc_video_relation_source, self.beta)
-            pred_fc_domain_video_relation_target = self.domain_classifier_relation(feat_fc_video_relation_target, self.beta)
+            pred_fc_domain_video_relation_source = self.domain_classifier_relation(feat_fc_video_relation_source,
+                                                                                   self.beta)
+            pred_fc_domain_video_relation_target = self.domain_classifier_relation(feat_fc_video_relation_target,
+                                                                                   self.beta)
 
             num_relation = feat_fc_video_relation_source.size()[1]
-            pred_domain_all_source['GRD'] = pred_fc_domain_video_relation_source.view((batch_source, num_relation) + pred_fc_domain_video_relation_source.size()[-1:])
-            pred_domain_all_target['GRD'] = pred_fc_domain_video_relation_target.view((batch_target, num_relation) + pred_fc_domain_video_relation_target.size()[-1:])
-
-            # transferable attention
-            if self.use_attn:  # get the attention weighting
-                feat_fc_video_relation_source, _ = self.get_attn_feat_relation(feat_fc_video_relation_source, pred_fc_domain_video_relation_source, self.num_segments)
-                feat_fc_video_relation_target, _ = self.get_attn_feat_relation(feat_fc_video_relation_target, pred_fc_domain_video_relation_target, self.num_segments)
-
-            # sum up relation features (ignore 1-relation)
-            feat_fc_video_source = torch.sum(feat_fc_video_relation_source, 1)
-            feat_fc_video_target = torch.sum(feat_fc_video_relation_target, 1)
-
-        else:
-            raise NotImplementedError
+            pred_domain_all_source['GRD'] = pred_fc_domain_video_relation_source.view(
+                (batch_source, num_relation) + pred_fc_domain_video_relation_source.size()[-1:])
+            pred_domain_all_target['GRD'] = pred_fc_domain_video_relation_target.view(
+                (batch_target, num_relation) + pred_fc_domain_video_relation_target.size()[-1:])
 
         # === source layers (video-level) ===#
         feat_fc_video_source = self.dropout_v(feat_fc_video_source)
         feat_fc_video_target = self.dropout_v(feat_fc_video_target)
-        return {
-            'source': {
-                'FC': feat_fc_source,
-                'Aggregation': feat_fc_video_source
-            },
-            'target': {
-                'FC': feat_fc_target,
-                'Aggregation': feat_fc_video_target
-            }
-        }
+
+        pred_fc_video_source = self.fc_classifier_video_source(feat_fc_video_source)
+        pred_fc_video_target = self.fc_classifier_video_target(
+            feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source(feat_fc_video_target)
+
+        # === adversarial branch (video-level) (GVD) === #
+        pred_fc_domain_video_source = self.domain_classifier_video(feat_fc_video_source, self.beta)
+        pred_fc_domain_video_target = self.domain_classifier_video(feat_fc_video_target, self.beta)
+
+        pred_domain_all_source['GVD'] = pred_fc_domain_video_source.view(
+            (batch_source,) + pred_fc_domain_video_source.size()[-1:])
+        pred_domain_all_target['GVD'] = pred_fc_domain_video_target.view(
+            (batch_target,) + pred_fc_domain_video_target.size()[-1:])
+
+        # === final output ===#
+        if not self.before_softmax:
+            pred_fc_video_source = self.softmax(pred_fc_video_source)
+            pred_fc_video_target = self.softmax(pred_fc_video_target)
+
+        return pred_fc_video_source, pred_domain_all_source, pred_fc_video_target, pred_domain_all_target
