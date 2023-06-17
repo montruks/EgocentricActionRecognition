@@ -58,7 +58,7 @@ class EpicKitchensDataset(data.Dataset, ABC):
         if self.load_feat:
             self.model_features = None
             lst_modality = self.modalities
-            if self.modalities[0] == 'all_feat':
+            if self.modalities[0] in ['all_feat', 'mid_fusion']:
                 lst_modality = self.concat_feat
             for m in lst_modality:
                 # load features for each modality
@@ -74,7 +74,15 @@ class EpicKitchensDataset(data.Dataset, ABC):
             if self.modalities[0] == 'all_feat':
                 # features concatenation
                 lst_modality = ['features_' + m for m in lst_modality]
-                self.model_features['features_all_feat'] = self.model_features[lst_modality].apply(lambda row: torch.cat(row.values.tolist(), dim=1), axis=1)
+                self.model_features['features_all_feat'] = self.model_features[lst_modality].apply(
+                    lambda row: torch.cat(row.values.tolist(), dim=1), axis=1)
+
+            if self.modalities[0] == 'mid_fusion':
+                # features concatenation
+                lst_modality = ['features_' + m for m in lst_modality]
+                for m in lst_modality:
+                    self.model_features[m] = self.model_features[m].apply(lambda row: torch.unsqueeze(row, dim=0), axis=1)
+                self.model_features['features_all_feat'] = self.model_features[lst_modality].apply(lambda row: torch.cat(row.values.tolist(), dim=0), axis=1)
 
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
 

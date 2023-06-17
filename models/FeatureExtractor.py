@@ -18,9 +18,8 @@ class GradReverse(Function):
 
 
 class FeatureExtractor(nn.Module):
-    def __init__(self, num_class, num_segments=5, feature_dim=3072, share_params='Y', add_fc=1,
-                 frame_aggregation='none', use_attn=False, beta=[1,1,1], dropout_i=0.5, dropout_v=0.5,
-                 ens_DA=None):
+    def __init__(self, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1, frame_aggregation='none',
+                 use_attn=False, beta=[1,1,1], dropout_i=0.5, ens_DA=None):
 
         super().__init__()
         self.num_segments = num_segments
@@ -32,14 +31,11 @@ class FeatureExtractor(nn.Module):
         self.beta = beta
 
         self.dropout_rate_i = dropout_i
-        self.dropout_rate_v = dropout_v
         self.ens_DA = ens_DA
-        self.before_softmax = True
 
-        self._prepare_DA(num_class)
+        self._prepare_DA()
 
-
-    def _prepare_DA(self, num_class):  # convert the model to DA framework
+    def _prepare_DA(self):  # convert the model to DA framework
 
         std = 0.001
 
@@ -48,7 +44,6 @@ class FeatureExtractor(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
         self.dropout_i = nn.Dropout(p=self.dropout_rate_i)
-        self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
 
         # ------ FRAME-LEVEL layers (shared layers + source layers + domain layers) ------#
 
@@ -98,46 +93,16 @@ class FeatureExtractor(nn.Module):
             self.bn_trn_S = nn.BatchNorm1d(self.num_bottleneck)
             self.bn_trn_T = nn.BatchNorm1d(self.num_bottleneck)
 
-        # ------ VIDEO-LEVEL layers (source layers + domain layers) ------#
-        # if self.frame_aggregation == 'avgpool'
-        feat_aggregated_dim = self.feature_dim
-        if self.frame_aggregation == 'trn':
-            feat_aggregated_dim = self.num_bottleneck
-
-        # 2. domain feature layers (video-level)
-        self.fc_feature_domain_video = nn.Linear(feat_aggregated_dim, feat_aggregated_dim)
-        normal_(self.fc_feature_domain_video.weight, 0, std)
-        constant_(self.fc_feature_domain_video.bias, 0)
-
-        # 3. classifiers (video-level)
-        self.fc_classifier_video_source = nn.Linear(feat_aggregated_dim, num_class)
-        normal_(self.fc_classifier_video_source.weight, 0, std)
-        constant_(self.fc_classifier_video_source.bias, 0)
-
-        '''if self.ens_DA == 'MCD':
-            self.fc_classifier_video_source_2 = nn.Linear(feat_aggregated_dim, num_class)  # second classifier for self-ensembling
-            normal_(self.fc_classifier_video_source_2.weight, 0, std)
-            constant_(self.fc_classifier_video_source_2.bias, 0)'''
-
-        self.fc_classifier_domain_video = nn.Linear(feat_aggregated_dim, 2)
-        normal_(self.fc_classifier_domain_video.weight, 0, std)
-        constant_(self.fc_classifier_domain_video.bias, 0)
-
         # domain classifier for TRN-M
         if self.frame_aggregation == 'trn':  # 'trn-m'
             self.relation_domain_classifier_all = nn.ModuleList()
             for i in range(self.num_segments - 1):
                 relation_domain_classifier = nn.Sequential(
-                    nn.Linear(feat_aggregated_dim, feat_aggregated_dim),
+                    nn.Linear(self.num_bottleneck, self.num_bottleneck),
                     nn.ReLU(),
-                    nn.Linear(feat_aggregated_dim, 2)
+                    nn.Linear(self.num_bottleneck, 2)
                 )
                 self.relation_domain_classifier_all += [relation_domain_classifier]
-
-        if self.share_params == 'N':
-            self.fc_classifier_video_target = nn.Linear(feat_aggregated_dim, num_class)
-            normal_(self.fc_classifier_video_target.weight, 0, std)
-            constant_(self.fc_classifier_video_target.bias, 0)
 
     def get_trans_attn(self, pred_domain):
         softmax = nn.Softmax(dim=1)
@@ -162,15 +127,6 @@ class FeatureExtractor(nn.Module):
         pred_fc_domain_frame = self.fc_classifier_domain(feat_fc_domain_frame)
 
         return pred_fc_domain_frame
-
-    # Gvd
-    def domain_classifier_video(self, feat_video, beta):
-        feat_fc_domain_video = GradReverse.apply(feat_video, beta[1])
-        feat_fc_domain_video = self.fc_feature_domain_video(feat_fc_domain_video)
-        feat_fc_domain_video = self.relu(feat_fc_domain_video)
-        pred_fc_domain_video = self.fc_classifier_domain_video(feat_fc_domain_video)
-
-        return pred_fc_domain_video
 
     # Grd
     def domain_classifier_relation(self, feat_relation, beta):
@@ -290,16 +246,4 @@ class FeatureExtractor(nn.Module):
         else:
             raise NotImplementedError
 
-        # === source layers (video-level) ===#
-        feat_fc_video_source = self.dropout_v(feat_fc_video_source)
-        feat_fc_video_target = self.dropout_v(feat_fc_video_target)
-        return {
-            'source': {
-                'FC': feat_fc_source,
-                'Aggregation': feat_fc_video_source
-            },
-            'target': {
-                'FC': feat_fc_target,
-                'Aggregation': feat_fc_video_target
-            }
-        }
+        return pred_domain_all_source, pred_domain_all_target, feat_fc_video_source, feat_fc_video_target
