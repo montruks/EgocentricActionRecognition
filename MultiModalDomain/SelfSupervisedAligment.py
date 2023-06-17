@@ -20,9 +20,12 @@ class ClassifierSSA(nn.Module):
         self.fc = nn.Linear(self.num_modalities * num_channels * num_features, 2)
         self.softmax = nn.Softmax()
 
-    def forward(self, input):
+    def forward(self, input):  # input è il batch senza nessuna modifica
         shape = input.size()
-        num_batch = shape[0]
+        num_batch = shape[0]  # number of samples in batch
+        # creating pseudo-samples and pseudo-labels
+
+
         tensor = None
         # concateno i tensori in un unico tensore
         for m in self.modalities:
@@ -35,3 +38,10 @@ class ClassifierSSA(nn.Module):
         x = self.fc(x)
         output = self.softmax(x)
         return output
+
+    def generatingPseudoSampling(self, input):
+        shape = input.size()
+        num_batch = shape[0]  # number of samples in batch
+        for k in range(num_batch):  # for each batch
+            random_idx = torch.randint(num_batch, size=(self.num_modalities,))
+
