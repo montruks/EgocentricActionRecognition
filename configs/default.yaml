@@ -78,3 +78,9 @@ models:
     lr: 0.01
     sgd_momentum: 0.9
     weight_decay: 1e-7
+  mid_fusion:
+    normalize: False
+    kwargs: {}
+    lr: 0.01
+    sgd_momentum: 0.9
+    weight_decay: 1e-7

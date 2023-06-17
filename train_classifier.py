@@ -57,6 +57,10 @@ def main():
     if args.models.weight.Attn != 0:
         use_attn = True
 
+    num_modalities = len(modalities)
+    if modalities[0] == 'mid_fusion':
+        num_modalities = len(args.concat_feat)
+
     feature_dim = 1024
     if modalities[0] == 'all_feat':
         feature_dim = int(1024 * len(args.concat_feat))
@@ -68,7 +72,8 @@ def main():
         models[m] = getattr(model_list, args.models.model)(num_class=8,
                                                            frame_aggregation=args.models.frame_aggregation,
                                                            use_attn=use_attn,
-                                                           feature_dim=feature_dim)
+                                                           feature_dim=feature_dim,
+                                                           num_modalities=num_modalities)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,

@@ -18,7 +18,7 @@ class GradReverse(Function):
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_class, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1,
+    def __init__(self, num_class, num_modalities=1, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1,
                  frame_aggregation='none', use_attn=False, beta=[1,1,1], dropout_i=0.5, dropout_v=0.5,
                  ens_DA=None):
 

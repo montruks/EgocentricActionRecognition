@@ -81,8 +81,8 @@ class EpicKitchensDataset(data.Dataset, ABC):
                 # features concatenation
                 lst_modality = ['features_' + m for m in lst_modality]
                 for m in lst_modality:
-                    self.model_features[m] = self.model_features[m].apply(lambda row: torch.unsqueeze(row, dim=0), axis=1)
-                self.model_features['features_all_feat'] = self.model_features[lst_modality].apply(lambda row: torch.cat(row.values.tolist(), dim=0), axis=1)
+                    self.model_features[m] = self.model_features[m].apply(lambda row: torch.unsqueeze(row, dim=0))
+                self.model_features['features_mid_fusion'] = self.model_features[lst_modality].apply(lambda row: torch.cat(row.values.tolist(), dim=0), axis=1)
 
             self.model_features = pd.merge(self.model_features, self.list_file, how="inner", on="uid")
 

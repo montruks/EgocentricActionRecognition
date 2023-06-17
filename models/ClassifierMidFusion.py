@@ -39,6 +39,7 @@ class ClassifierMidFusion(nn.Module):
         std = 0.001
 
         self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
+        self.relu = nn.ReLU(inplace=True)
 
         self.num_bottleneck = 256 * self.num_modalities
         feat_aggregated_dim = feature_dim * self.num_modalities
