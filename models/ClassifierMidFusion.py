@@ -123,6 +123,15 @@ class ClassifierMidFusion(nn.Module):
         feat_fc_video_source = self.dropout_v(feat_fc_video_source)
         feat_fc_video_target = self.dropout_v(feat_fc_video_target)
 
+        feat_fc_video_source = self.fc_mid_shared_source(feat_fc_video_source)
+        feat_fc_video_target = self.fc_mid_shared_target(feat_fc_video_target) if self.share_params == 'N' else self.fc_mid_shared_source(feat_fc_video_target)
+
+        feat_fc_video_source = self.relu(feat_fc_video_source)
+        feat_fc_video_target = self.relu(feat_fc_video_target)
+
+        feat_fc_video_source = self.dropout_v(feat_fc_video_source)
+        feat_fc_video_target = self.dropout_v(feat_fc_video_target)
+
         pred_fc_video_source = self.fc_classifier_video_source(feat_fc_video_source)
         pred_fc_video_target = self.fc_classifier_video_target(
             feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source(feat_fc_video_target)
