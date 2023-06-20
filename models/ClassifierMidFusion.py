@@ -45,37 +45,39 @@ class ClassifierMidFusion(nn.Module):
         self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
         self.relu = nn.ReLU(inplace=True)
 
+        self.mid_fusion_fc_dim = 512
+
         self.num_bottleneck = 256 * self.num_modalities
         feat_aggregated_dim = feature_dim * self.num_modalities
         if frame_aggregation == 'trn':
             feat_aggregated_dim = self.num_bottleneck
 
         # 1. fc mid (video-level)
-        self.fc_mid_shared_source = nn.Linear(feat_aggregated_dim, feat_aggregated_dim)
+        self.fc_mid_shared_source = nn.Linear(feat_aggregated_dim, self.mid_fusion_fc_dim)
         normal_(self.fc_mid_shared_source.weight, 0, std)
         constant_(self.fc_mid_shared_source.bias, 0)
 
         if self.share_params == 'N':
-            self.fc_mid_shared_target = nn.Linear(feat_aggregated_dim, feat_aggregated_dim)
+            self.fc_mid_shared_target = nn.Linear(feat_aggregated_dim, self.mid_fusion_fc_dim)
             normal_(self.fc_mid_shared_target.weight, 0, std)
             constant_(self.fc_mid_shared_target.bias, 0)
 
         # 2. domain feature layers (video-level)
-        self.fc_feature_domain_video = nn.Linear(feat_aggregated_dim, feat_aggregated_dim)
+        self.fc_feature_domain_video = nn.Linear(self.mid_fusion_fc_dim, self.mid_fusion_fc_dim)
         normal_(self.fc_feature_domain_video.weight, 0, std)
         constant_(self.fc_feature_domain_video.bias, 0)
 
-        self.fc_classifier_domain_video = nn.Linear(feat_aggregated_dim, 2)
+        self.fc_classifier_domain_video = nn.Linear(self.mid_fusion_fc_dim, 2)
         normal_(self.fc_classifier_domain_video.weight, 0, std)
         constant_(self.fc_classifier_domain_video.bias, 0)
 
         # 3. classifier (video-level)
-        self.fc_classifier_video_source = nn.Linear(feat_aggregated_dim, num_class)
+        self.fc_classifier_video_source = nn.Linear(self.mid_fusion_fc_dim, num_class)
         normal_(self.fc_classifier_video_source.weight, 0, std)
         constant_(self.fc_classifier_video_source.bias, 0)
 
         if self.share_params == 'N':
-            self.fc_classifier_video_target = nn.Linear(feat_aggregated_dim, num_class)
+            self.fc_classifier_video_target = nn.Linear(self.mid_fusion_fc_dim, num_class)
             normal_(self.fc_classifier_video_target.weight, 0, std)
             constant_(self.fc_classifier_video_target.bias, 0)
 
