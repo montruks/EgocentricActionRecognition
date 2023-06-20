@@ -171,11 +171,9 @@ class FeatureExtractor(nn.Module):
         pred_domain_all_source = {}
         pred_domain_all_target = {}
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         # input_data is a list of tensors --> need to do pre-processing
-        feat_base_source = input_source.contiguous().view(-1, input_source.size()[-1]).to(device)  # e.g. 256 x 25 x 2048 --> 6400 x 2048
-        feat_base_target = input_target.contiguous().view(-1, input_target.size()[-1]).to(device)  # e.g. 256 x 25 x 2048 --> 6400 x 2048
+        feat_base_source = input_source.contiguous().view(-1, input_source.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
+        feat_base_target = input_target.contiguous().view(-1, input_target.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
 
         # === MLP === with 1 lvl
         feat_fc_source = self.fc_feature_shared_source(feat_base_source)

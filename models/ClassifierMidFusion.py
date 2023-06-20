@@ -36,6 +36,10 @@ class ClassifierMidFusion(nn.Module):
                                                             frame_aggregation=frame_aggregation, use_attn=use_attn,
                                                             beta=beta, dropout_i=dropout_i, ens_DA=ens_DA))
 
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        for i, model in enumerate(self.featuresExtractors):
+            self.featuresExtractors[i] = torch.nn.DataParallel(model).to(device)
+
         std = 0.001
 
         self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
