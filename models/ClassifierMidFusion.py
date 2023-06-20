@@ -120,9 +120,6 @@ class ClassifierMidFusion(nn.Module):
         batch_source = input_source.size()[0]
         batch_target = input_target.size()[0]
 
-        feat_fc_video_source = self.dropout_v(feat_fc_video_source)
-        feat_fc_video_target = self.dropout_v(feat_fc_video_target)
-
         feat_fc_video_source = self.fc_mid_shared_source(feat_fc_video_source)
         feat_fc_video_target = self.fc_mid_shared_target(feat_fc_video_target) if self.share_params == 'N' else self.fc_mid_shared_source(feat_fc_video_target)
 
