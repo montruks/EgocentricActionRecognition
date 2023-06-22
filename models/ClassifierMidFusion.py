@@ -29,7 +29,7 @@ class ClassifierMidFusion(nn.Module):
         self.dropout_rate_v = dropout_v
         self.before_softmax = True
 
-        self.featuresExtractors = []
+        self.featuresExtractors = nn.ModuleList([])
         for m in range(self.num_modalities):
             self.featuresExtractors.append(FeatureExtractor(num_segments=num_segments, feature_dim=feature_dim,
                                                             share_params=share_params, add_fc=add_fc,
