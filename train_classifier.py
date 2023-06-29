@@ -52,16 +52,28 @@ def main():
     # these dictionaries are for more multi-modal training/testing, each key is a modality used
     models = {}
     logger.info("Instantiating models per modality")
+
+    use_attn = False
+    if args.models.weight.Attn != 0:
+        use_attn = True
+
+    num_modalities = len(modalities)
+    if modalities[0] == 'mid_fusion':
+        num_modalities = len(args.concat_feat)
+
+    feature_dim = 1024
+    if modalities[0] == 'all_feat':
+        feature_dim = int(1024 * len(args.concat_feat))
+    
     for m in modalities:
-        logger.info('{} Net\tModality: {}'.format(args.models[m].model, m))
+        logger.info('{} Net\tModality: {}'.format(args.models.model, m))
         # notice that here, the first parameter passed is the input dimension
         # In our case it represents the feature dimensionality which is equivalent to 1024 for I3D
-        use_attn = False
-        if args.models[m].weight.Attn != 0:
-            use_attn = True
-        models[m] = getattr(model_list, args.models[m].model)(num_class=8,
-                                                              frame_aggregation=args.models[m].frame_aggregation,
-                                                              use_attn=use_attn)
+        models[m] = getattr(model_list, args.models.model)(num_class=8,
+                                                           frame_aggregation=args.models.frame_aggregation,
+                                                           use_attn=use_attn,
+                                                           feature_dim=feature_dim,
+                                                           num_modalities=num_modalities)
 
     # the models are wrapped into the ActionRecognition task which manages all the training steps
     action_classifier = tasks.ActionRecognition("action-classifier", models, args.batch_size,
@@ -79,22 +91,23 @@ def main():
         training_iterations = args.train.num_iter * (args.total_batch // args.batch_size)
         # all dataloaders are generated here
         source_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[0], modalities,
-                                                                       'train', args.dataset, None, None, None,
-                                                                       None, load_feat=True),
-                                                   batch_size=args.batch_size, shuffle=True,
-                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+                                                                        'train', args.dataset, None, None, None,
+                                                                        concat_feat=args.concat_feat, load_feat=True),
+                                                    batch_size=args.batch_size, shuffle=True,
+                                                    num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
 
         target_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
-                                                                       'train', args.dataset, None, None, None,
-                                                                       None, load_feat=True),
-                                                   batch_size=args.batch_size, shuffle=True,
-                                                   num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
+                                                                        'train', args.dataset, None, None, None,
+                                                                        concat_feat=args.concat_feat, load_feat=True),
+                                                    batch_size=args.batch_size, shuffle=True,
+                                                    num_workers=args.dataset.workers, pin_memory=True, drop_last=True)
 
         val_loader = torch.utils.data.DataLoader(EpicKitchensDataset(args.dataset.shift.split("-")[-1], modalities,
                                                                      'val', args.dataset, None, None, None,
-                                                                     None, load_feat=True),
+                                                                     concat_feat=args.concat_feat, load_feat=True),
                                                  batch_size=args.batch_size, shuffle=False,
                                                  num_workers=args.dataset.workers, pin_memory=True, drop_last=False)
+
         train(action_classifier, source_loader, target_loader, val_loader, device, num_classes)
 
     elif args.action == "validate":

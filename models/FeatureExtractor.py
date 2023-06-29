@@ -17,10 +17,9 @@ class GradReverse(Function):
         return grad_input, None
 
 
-class Classifier(nn.Module):
-    def __init__(self, num_class, num_modalities=1, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1,
-                 frame_aggregation='none', use_attn=False, beta=[1,1,1], dropout_i=0.5, dropout_v=0.5,
-                 ens_DA=None):
+class FeatureExtractor(nn.Module):
+    def __init__(self, num_segments=5, feature_dim=1024, share_params='Y', add_fc=1, frame_aggregation='none',
+                 use_attn=False, beta=[1,1,1], dropout_i=0.5, ens_DA=None):
 
         super().__init__()
         self.num_segments = num_segments
@@ -32,14 +31,11 @@ class Classifier(nn.Module):
         self.beta = beta
 
         self.dropout_rate_i = dropout_i
-        self.dropout_rate_v = dropout_v
         self.ens_DA = ens_DA
-        self.before_softmax = True
 
-        self._prepare_DA(num_class)
+        self._prepare_DA()
 
-
-    def _prepare_DA(self, num_class):  # convert the model to DA framework
+    def _prepare_DA(self):  # convert the model to DA framework
 
         std = 0.001
 
@@ -48,7 +44,6 @@ class Classifier(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
         self.dropout_i = nn.Dropout(p=self.dropout_rate_i)
-        self.dropout_v = nn.Dropout(p=self.dropout_rate_v)
 
         # ------ FRAME-LEVEL layers (shared layers + source layers + domain layers) ------#
 
@@ -98,46 +93,16 @@ class Classifier(nn.Module):
             self.bn_trn_S = nn.BatchNorm1d(self.num_bottleneck)
             self.bn_trn_T = nn.BatchNorm1d(self.num_bottleneck)
 
-        # ------ VIDEO-LEVEL layers (source layers + domain layers) ------#
-        # if self.frame_aggregation == 'avgpool'
-        feat_aggregated_dim = self.feature_dim
-        if self.frame_aggregation == 'trn':
-            feat_aggregated_dim = self.num_bottleneck
-
-        # 2. domain feature layers (video-level)
-        self.fc_feature_domain_video = nn.Linear(feat_aggregated_dim, feat_aggregated_dim)
-        normal_(self.fc_feature_domain_video.weight, 0, std)
-        constant_(self.fc_feature_domain_video.bias, 0)
-
-        # 3. classifiers (video-level)
-        self.fc_classifier_video_source = nn.Linear(feat_aggregated_dim, num_class)
-        normal_(self.fc_classifier_video_source.weight, 0, std)
-        constant_(self.fc_classifier_video_source.bias, 0)
-
-        '''if self.ens_DA == 'MCD':
-            self.fc_classifier_video_source_2 = nn.Linear(feat_aggregated_dim, num_class)  # second classifier for self-ensembling
-            normal_(self.fc_classifier_video_source_2.weight, 0, std)
-            constant_(self.fc_classifier_video_source_2.bias, 0)'''
-
-        self.fc_classifier_domain_video = nn.Linear(feat_aggregated_dim, 2)
-        normal_(self.fc_classifier_domain_video.weight, 0, std)
-        constant_(self.fc_classifier_domain_video.bias, 0)
-
         # domain classifier for TRN-M
         if self.frame_aggregation == 'trn':  # 'trn-m'
             self.relation_domain_classifier_all = nn.ModuleList()
             for i in range(self.num_segments - 1):
                 relation_domain_classifier = nn.Sequential(
-                    nn.Linear(feat_aggregated_dim, feat_aggregated_dim),
+                    nn.Linear(self.num_bottleneck, self.num_bottleneck),
                     nn.ReLU(),
-                    nn.Linear(feat_aggregated_dim, 2)
+                    nn.Linear(self.num_bottleneck, 2)
                 )
                 self.relation_domain_classifier_all += [relation_domain_classifier]
-
-        if self.share_params == 'N':
-            self.fc_classifier_video_target = nn.Linear(feat_aggregated_dim, num_class)
-            normal_(self.fc_classifier_video_target.weight, 0, std)
-            constant_(self.fc_classifier_video_target.bias, 0)
 
     def get_trans_attn(self, pred_domain):
         softmax = nn.Softmax(dim=1)
@@ -162,15 +127,6 @@ class Classifier(nn.Module):
         pred_fc_domain_frame = self.fc_classifier_domain(feat_fc_domain_frame)
 
         return pred_fc_domain_frame
-
-    # Gvd
-    def domain_classifier_video(self, feat_video, beta):
-        feat_fc_domain_video = GradReverse.apply(feat_video, beta[1])
-        feat_fc_domain_video = self.fc_feature_domain_video(feat_fc_domain_video)
-        feat_fc_domain_video = self.relu(feat_fc_domain_video)
-        pred_fc_domain_video = self.fc_classifier_domain_video(feat_fc_domain_video)
-
-        return pred_fc_domain_video
 
     # Grd
     def domain_classifier_relation(self, feat_relation, beta):
@@ -216,8 +172,8 @@ class Classifier(nn.Module):
         pred_domain_all_target = {}
 
         # input_data is a list of tensors --> need to do pre-processing
-        feat_base_source = input_source.view(-1, input_source.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
-        feat_base_target = input_target.view(-1, input_target.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
+        feat_base_source = input_source.contiguous().view(-1, input_source.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
+        feat_base_target = input_target.contiguous().view(-1, input_target.size()[-1])  # e.g. 256 x 25 x 2048 --> 6400 x 2048
 
         # === MLP === with 1 lvl
         feat_fc_source = self.fc_feature_shared_source(feat_base_source)
@@ -290,34 +246,4 @@ class Classifier(nn.Module):
         else:
             raise NotImplementedError
 
-        # === source layers (video-level) ===#
-        feat_fc_video_source = self.dropout_v(feat_fc_video_source)
-        feat_fc_video_target = self.dropout_v(feat_fc_video_target)
-
-        pred_fc_video_source = self.fc_classifier_video_source(feat_fc_video_source)
-        pred_fc_video_target = self.fc_classifier_video_target(feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source(feat_fc_video_target)
-
-        # === adversarial branch (video-level) (GVD) === #
-        pred_fc_domain_video_source = self.domain_classifier_video(feat_fc_video_source, self.beta)
-        pred_fc_domain_video_target = self.domain_classifier_video(feat_fc_video_target, self.beta)
-
-        pred_domain_all_source['GVD'] = pred_fc_domain_video_source.view((batch_source,) + pred_fc_domain_video_source.size()[-1:])
-        pred_domain_all_target['GVD'] = pred_fc_domain_video_target.view((batch_target,) + pred_fc_domain_video_target.size()[-1:])
-
-        # === final output ===#
-        if not self.before_softmax:
-            pred_fc_video_source = self.softmax(pred_fc_video_source)
-            pred_fc_video_target = self.softmax(pred_fc_video_target)
-
-        '''if self.ens_DA == 'MCD':
-            pred_fc_video_source_2 = self.fc_classifier_video_source_2(feat_fc_video_source)
-            pred_fc_video_target_2 = self.fc_classifier_video_target_2(
-                feat_fc_video_target) if self.share_params == 'N' else self.fc_classifier_video_source_2(
-                feat_fc_video_target)
-            output_source_2 = self.final_output(pred_fc_source, pred_fc_video_source_2, num_segments)
-            output_target_2 = self.final_output(pred_fc_target, pred_fc_video_target_2, num_segments)'''
-
-        return pred_fc_video_source, pred_domain_all_source, pred_fc_video_target, pred_domain_all_target
-        # Ly: pred_fc_video_source
-        # Lsd, Lrd, Lvd: pred_domain_all_source, pred_domain_all_target
-        # Lae: pred_fc_video_source, pred_domain_all_source, pred_fc_video_target, pred_domain_all_target
+        return pred_domain_all_source, pred_domain_all_target, feat_fc_video_source, feat_fc_video_target
